@@ -1,0 +1,124 @@
+<header #headerEl class="header" [class.header--scrolled]="isScrolled">
+  <div class="header__inner">
+    <!-- BRAND -->
+    <a class="brand" routerLink="/dashboard" (click)="closeMenu()">
+      <span class="brand__logo">
+        <img
+          class="brand__mark"
+          [src]="logoPath"
+          alt="Servimel"
+          (error)="handleImgError($event)"
+        />
+        <img
+          class="brand__wordmark"
+          src="/images/servimelheader.PNG"
+          alt="Servimel"
+          loading="eager"
+          decoding="async"
+        />
+      </span>
+
+      <span class="brand__text">
+        <span class="brand__name"></span>
+        <span class="brand__tag"></span>
+      </span>
+    </a>
+
+    <!-- NAV DESKTOP -->
+    <nav class="nav nav--desktop" aria-label="Navegación principal">
+      <a
+        class="nav__link"
+        *ngFor="let item of nav; let i = index"
+        [style.--i]="i"
+        [routerLink]="item.path"
+        routerLinkActive="is-active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        {{ item.label }}
+      </a>
+    </nav>
+
+    <!-- ACTIONS -->
+    <div class="actions">
+      <a class="btn btn--profile" routerLink="/perfil" title="Perfil">Perfil</a>
+
+      <button
+        #burgerEl
+        class="burger"
+        type="button"
+        (click)="toggleMenu()"
+        [class.is-open]="isMenuOpen"
+        [attr.aria-expanded]="isMenuOpen"
+        [attr.aria-label]="isMenuOpen ? 'Cerrar menú' : 'Abrir menú'"
+      >
+        <span class="burger__icon" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MOBILE MENU -->
+  <div #mobileEl class="mobile" [class.mobile--open]="isMenuOpen">
+    <nav class="nav nav--mobile" aria-label="Menú móvil">
+      <a
+        class="nav__link m-link"
+        *ngFor="let item of nav; let i = index"
+        [style.--i]="i"
+        [routerLink]="item.path"
+        routerLinkActive="is-active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        (click)="closeMenu()"
+      >
+        <span class="m-dot" aria-hidden="true"></span>
+        {{ item.label }}
+      </a>
+
+      <div class="divider" aria-hidden="true"></div>
+
+      <!-- ✅ Logout real con animación -->
+      <button
+        class="nav__link nav__link--muted m-link"
+        type="button"
+        (click)="logout()"
+      >
+        <span class="m-dot" aria-hidden="true"></span>
+        Cerrar sesión
+      </button>
+    </nav>
+  </div>
+</header>
+
+<!-- ✅ LOGOUT MODAL (IGUAL QUE LOGIN SUCCESS) -->
+<div
+  class="logout-backdrop"
+  *ngIf="logoutOpen"
+  #logoutBackdrop
+  role="dialog"
+  aria-modal="true"
+  aria-label="Cierre de sesión exitoso"
+>
+  <div class="logout-modal" #logoutModal>
+    <div class="logout-icon" aria-hidden="true">
+      <div class="logout-ring"></div>
+
+      <div class="logout-badge">
+        <svg viewBox="0 0 24 24" class="logout-check" aria-hidden="true">
+          <path
+            d="M20 6L9 17l-5-5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+    </div>
+
+    <div class="logout-text">
+      <div class="logout-title">Sesión cerrada</div>
+      <div class="logout-sub">Volviendo al inicio…</div>
+    </div>
+  </div>
+</div>

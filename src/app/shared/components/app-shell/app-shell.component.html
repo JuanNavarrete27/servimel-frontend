@@ -1,0 +1,13 @@
+<div class="shell">
+  <!-- background layers -->
+  <div class="bg-grain" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <app-header></app-header>
+
+  <main class="shell__main">
+    <router-outlet></router-outlet>
+  </main>
+
+  <app-footer [year]="year"></app-footer>
+</div>

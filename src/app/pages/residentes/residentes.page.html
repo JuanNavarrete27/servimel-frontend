@@ -1,0 +1,100 @@
+<section class="page" (mousemove)="onMove($event)" (mouseleave)="onLeave()">
+  <header class="head">
+    <div class="head__left">
+      <div class="eyebrow">Gestión</div>
+      <h2>Residentes</h2>
+      <p>Listado general y acceso al historial clínico por residente.</p>
+
+      <!-- micro-resumen (rápido, interno) -->
+      <div class="mini">
+        <span class="mini__chip">
+          <span class="dot dot--lime"></span>
+          Total: <b>{{ totalCount }}</b>
+        </span>
+
+        <span class="mini__chip mini__chip--ok">
+          Estables:
+          <b>{{ establesCount }}</b>
+        </span>
+
+        <span class="mini__chip mini__chip--warn">
+          Observación:
+          <b>{{ observacionCount }}</b>
+        </span>
+
+        <span class="mini__chip mini__chip--danger">
+          Críticos:
+          <b>{{ criticosCount }}</b>
+        </span>
+      </div>
+    </div>
+
+    <a class="btn btn--primary" routerLink="/nuevo">
+      + Nuevo residente
+    </a>
+  </header>
+
+  <div class="toolbar">
+    <div class="searchWrap">
+      <span class="searchIcon" aria-hidden="true">⌕</span>
+      <input
+        class="search"
+        [(ngModel)]="q"
+        placeholder="Buscar por nombre, CI o habitación…"
+      />
+    </div>
+
+    <div class="chips" role="tablist" aria-label="Filtrar por estado">
+      <button class="chip" type="button" [class.is-active]="filtro==='todos'" (click)="filtro='todos'">Todos</button>
+      <button class="chip" type="button" [class.is-active]="filtro==='estable'" (click)="filtro='estable'">Estables</button>
+      <button class="chip" type="button" [class.is-active]="filtro==='observacion'" (click)="filtro='observacion'">Observación</button>
+      <button class="chip" type="button" [class.is-active]="filtro==='critico'" (click)="filtro='critico'">Críticos</button>
+    </div>
+  </div>
+
+  <!-- ✅ LISTA: ahora es scroll real + ocupa la altura bien + no “corta” items -->
+  <div class="list" [class.list--empty]="filtered.length === 0">
+    <!-- fades pro para indicar scroll -->
+    <div class="fade fade--top" aria-hidden="true"></div>
+    <div class="fade fade--bottom" aria-hidden="true"></div>
+
+    <button
+      type="button"
+      class="row"
+      *ngFor="let r of filtered; trackBy: trackById"
+      (click)="openDetalle(r.id, $event)"
+      [attr.data-state]="r.estado"
+    >
+      <span class="statebar" aria-hidden="true"></span>
+
+      <div class="row__main">
+        <div class="row__top">
+          <div class="row__name">{{ r.nombre }}</div>
+
+          <span class="badge" [attr.data-state]="r.estado">
+            {{ estadoLabel(r.estado) }}
+          </span>
+        </div>
+
+        <div class="row__meta">
+          <span class="meta__item">{{ r.documento }}</span>
+          <span class="meta__sep">•</span>
+          <span class="meta__item">Hab. {{ r.habitacion }}</span>
+        </div>
+      </div>
+
+      <div class="row__right">
+        <span class="go">Abrir</span>
+        <span class="arrow" aria-hidden="true">→</span>
+      </div>
+    </button>
+
+    <div class="empty" *ngIf="filtered.length === 0">
+      <div class="empty__title">Sin resultados</div>
+      <div class="empty__text">Probá cambiando el filtro o el texto de búsqueda.</div>
+    </div>
+
+    <!-- ✅ relleno visual pro cuando hay pocos residentes (evita el “espacio feo”) -->
+    <div class="listFill" *ngIf="filtered.length > 0" aria-hidden="true"></div>
+  </div>
+</section>

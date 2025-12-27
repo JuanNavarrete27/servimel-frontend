@@ -1,0 +1,58 @@
+<footer
+  #footerEl
+  class="sys-footer"
+  (mousemove)="onMove($event)"
+  (mouseleave)="onLeave()"
+>
+  <!-- watermark sutil -->
+  <img
+    class="sys-footer__wm"
+    [src]="logoPath"
+    alt=""
+    aria-hidden="true"
+    (error)="handleImgError($event)"
+  />
+
+  <div class="sys-footer__inner">
+    <!-- IZQ -->
+    <div class="sys-footer__left">
+      <div class="sys-footer__title">
+        <span class="sys-footer__app">Servimel</span>
+        <span class="sys-footer__pill" [attr.data-env]="environment">{{ environment }}</span>
+      </div>
+
+      <div class="sys-footer__meta">
+        <span class="sys-footer__muted">Sistema interno</span>
+        <span class="sys-footer__sep">•</span>
+        <span class="sys-footer__muted">{{ version }}</span>
+        <span class="sys-footer__sep">•</span>
+        <span class="sys-footer__muted">© {{ year }}</span>
+      </div>
+    </div>
+
+    <!-- CENTRO -->
+    <div class="sys-footer__center">
+      <div class="sys-footer__note">
+        Uso exclusivo de funcionarios. Registro y trazabilidad de acciones.
+      </div>
+
+      <a class="sys-footer__support" [routerLink]="supportRoute">
+        {{ supportLabel }}
+      </a>
+    </div>
+
+    <!-- DER -->
+    <div class="sys-footer__right" aria-label="Accesos rápidos">
+      <a
+        class="sys-footer__link"
+        *ngFor="let item of links; let i = index"
+        [style.--i]="i"
+        [routerLink]="item.path"
+        routerLinkActive="is-active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        {{ item.label }}
+      </a>
+    </div>
+  </div>
+</footer>

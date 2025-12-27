@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = "dist/servimel-frontend"  # 👈 usa el nombre exacto que aparece dentro de dist
+  base = ""
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

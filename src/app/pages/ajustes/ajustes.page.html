@@ -1,0 +1,503 @@
+<!-- ajustes.page.html -->
+<!-- =========================================================
+     SERVIMEL — Ajustes (Configuración del sistema)
+========================================================== -->
+
+<section #pageRoot class="ajustes-page">
+  <!-- TOASTS -->
+  <div class="toast-stack" aria-live="polite" aria-atomic="true">
+    <div
+      class="toast"
+      *ngFor="let t of toasts"
+      [class.toast--ok]="t.type === 'ok'"
+      [class.toast--warn]="t.type === 'warn'"
+      [class.toast--error]="t.type === 'error'"
+    >
+      <div class="toast__dot"></div>
+
+      <div class="toast__body">
+        <div class="toast__title">{{ t.title }}</div>
+        <div class="toast__msg" *ngIf="t.msg">{{ t.msg }}</div>
+      </div>
+
+      <button
+        class="toast__x"
+        type="button"
+        (click)="cerrarToast(t.id)"
+        aria-label="Cerrar notificación"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="page-header">
+    <div class="page-header__left">
+      <div class="eyebrow js-anim-header">Ajustes</div>
+      <h1 class="title js-anim-header">Configuración del sistema</h1>
+      <p class="desc js-anim-header">
+        Preferencias de interfaz, configuración clínica y opciones de seguridad.
+        Cambios en modo <span class="mono"></span>
+      </p>
+
+      <div class="actions js-anim-header">
+        <button class="btn btn--primary js-save-pulse js-pulse" type="button" (click)="guardarCambiosGlobal()">
+          Guardar cambios
+        </button>
+
+        <button class="btn btn--ghost" type="button" (click)="volver()">
+          Volver
+        </button>
+      </div>
+    </div>
+
+    <!-- mini highlight / glow -->
+    <aside class="kpiPanel js-anim-card js-anim-glow js-preview-pulse" aria-label="Preview de preferencias">
+      <div class="kpiPanel__title">Preview</div>
+      <div class="kpiPanel__hint">Mini vista de tema / tamaño / compacto</div>
+
+      <div class="previewCard panel">
+        <div class="previewTop">
+          <div class="pill">Tema: {{ uiPrefs.theme === 'servimel-dark' ? 'Servimel común' : 'Alto contraste' }}</div>
+          <div class="pill">Fuente: {{ uiPrefs.fontSize === 'sm' ? 'Pequeña' : (uiPrefs.fontSize === 'md' ? 'Normal' : 'Grande') }}</div>
+        </div>
+
+        <div class="previewBody">
+          <div class="line"></div>
+          <div class="line line--short"></div>
+          <div class="chipPreview">
+            <span class="chip chip--ok">OK</span>
+            <span class="chip chip--info">Info</span>
+            <span class="chip chip--danger">Alerta</span>
+          </div>
+        </div>
+
+        <div class="previewFooter">
+          <span class="mono">{{ uiPrefs.compact ? 'Modo compacto: ON' : 'Modo compacto: OFF' }}</span>
+          <span class="mono">{{ uiPrefs.animations ? 'Animaciones: ON' : 'Animaciones: OFF' }}</span>
+        </div>
+      </div>
+    </aside>
+  </header>
+
+  <!-- LAYOUT 2 COL -->
+  <div class="layout">
+    <!-- LEFT COL -->
+    <div class="col js-anim-card">
+      <!-- 1) Cuenta y Seguridad -->
+      <article class="card js-anim-card js-profile-pulse">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Cuenta y Seguridad</h2>
+            <p class="card__subtitle">Perfil + validaciones.</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <!-- Perfil -->
+          <form class="form" [formGroup]="accountForm" (ngSubmit)="$event.preventDefault()">
+            <div class="form__grid">
+              <div class="field">
+                <label class="label">Nombre</label>
+                <input
+                  class="input"
+                  formControlName="nombre"
+                  [class.input--invalid]="isInvalid(accountForm, 'nombre')"
+                  placeholder="Nombre"
+                />
+                <div class="error" *ngIf="isInvalid(accountForm, 'nombre')">
+                  Requerido (máx 40).
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="label">Apellido</label>
+                <input
+                  class="input"
+                  formControlName="apellido"
+                  [class.input--invalid]="isInvalid(accountForm, 'apellido')"
+                  placeholder="Apellido"
+                />
+                <div class="error" *ngIf="isInvalid(accountForm, 'apellido')">
+                  Requerido (máx 40).
+                </div>
+              </div>
+
+              <div class="field field--full">
+                <label class="label">Email</label>
+                <input class="input input--readonly" formControlName="email" readonly />
+                <div class="help">El email es solo lectura en este MVP.</div>
+              </div>
+
+              <div class="field field--full rowToggle js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="cerrarOtros" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Cerrar sesión en otros dispositivos</span>
+                </label>
+                <div class="help">
+                  Invalida tokens de sesiones activas.
+                </div>
+              </div>
+            </div>
+
+            <div class="form__actions">
+              <button class="btn btn--primary" type="button" (click)="actualizarPerfil()">
+                Actualizar perfil
+              </button>
+            </div>
+          </form>
+
+          <!-- Separador -->
+          <div class="divider"></div>
+
+          <!-- Password -->
+          <form class="form" [formGroup]="passwordForm" (ngSubmit)="$event.preventDefault()">
+            <div class="sectionTitle">
+              <div class="sectionTitle__t">Cambiar contraseña</div>
+              <div class="sectionTitle__h">Mínimo 8 caracteres.</div>
+            </div>
+
+            <div class="form__grid">
+              <div class="field">
+                <label class="label">Actual</label>
+                <input
+                  class="input"
+                  type="password"
+                  formControlName="actual"
+                  [class.input--invalid]="isInvalid(passwordForm, 'actual')"
+                  placeholder="••••••"
+                />
+                <div class="error" *ngIf="isInvalid(passwordForm, 'actual')">
+                  Requerido (mín 6).
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="label">Nueva</label>
+                <input
+                  class="input"
+                  type="password"
+                  formControlName="nueva"
+                  [class.input--invalid]="isInvalid(passwordForm, 'nueva')"
+                  placeholder="••••••••"
+                />
+                <div class="error" *ngIf="isInvalid(passwordForm, 'nueva')">
+                  Requerido (mín 8).
+                </div>
+              </div>
+
+              <div class="field field--full">
+                <label class="label">Confirmar</label>
+                <input
+                  class="input"
+                  type="password"
+                  formControlName="confirmar"
+                  [class.input--invalid]="isInvalid(passwordForm, 'confirmar') || (passwordForm.touched && passwordForm.hasError('passwordsMismatch'))"
+                  placeholder="••••••••"
+                />
+                <div class="error" *ngIf="passwordForm.touched && passwordForm.hasError('passwordsMismatch')">
+                  La confirmación no coincide.
+                </div>
+              </div>
+            </div>
+
+            <div class="form__actions">
+              <button class="btn btn--ghost js-pass-pulse" type="button" (click)="cambiarPassword()">
+                Cambiar contraseña
+              </button>
+            </div>
+          </form>
+        </div>
+      </article>
+
+      <!-- 2) Roles y Accesos -->
+      <article class="card js-anim-card">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Roles y Accesos</h2>
+            <p class="card__subtitle">Permisos visibles (mock) según usuario.</p>
+          </div>
+
+          <span class="chip chip--info js-anim-row">
+            Rol: {{ roleLabel(role) }}
+          </span>
+        </div>
+
+        <div class="card__body">
+          <div class="permList">
+            <div class="permRow js-anim-row" *ngFor="let p of permissions">
+              <div class="permRow__label">{{ p.label }}</div>
+              <span [class]="permissionChipClass(p.allowed)">
+                {{ permissionChipLabel(p.allowed) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="noteBox">
+            <b>Nota:</b> Solo administradores pueden editar roles.
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <!-- RIGHT COL -->
+    <div class="col js-anim-card">
+      <!-- 3) Preferencias de Interfaz -->
+      <article class="card js-anim-card js-preview-pulse">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Preferencias de Interfaz</h2>
+            <p class="card__subtitle">Compacto, animaciones, tipografía, tema.</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <form class="form" [formGroup]="uiForm" (ngSubmit)="$event.preventDefault()">
+            <div class="form__grid form__grid--compact">
+              <div class="field field--full js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="compact" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Modo compacto</span>
+                </label>
+                <div class="help">Reduce espacios para pantallas con mucha carga.</div>
+              </div>
+
+              <div class="field field--full js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="animations" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Animaciones</span>
+                </label>
+                <div class="help">Respeta <span class="mono">prefers-reduced-motion</span>.</div>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">Tamaño de fuente</label>
+                <select class="input" formControlName="fontSize">
+                  <option value="sm">Pequeña</option>
+                  <option value="md">Normal</option>
+                  <option value="lg">Grande</option>
+                </select>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">Tema</label>
+                <select class="input" formControlName="theme">
+                  <option value="servimel-dark">Servimel común</option>
+                  <option value="high-contrast">Alto contraste</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form__actions">
+              <span class="hintInline">
+                Guardado automático en <span class="mono">localStorage</span>
+              </span>
+            </div>
+          </form>
+        </div>
+      </article>
+
+      <!-- 4) Configuración Clínica -->
+      <article class="card js-anim-card js-clinic-pulse">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Configuración Clínica</h2>
+            <p class="card__subtitle">Intervalos y umbrales de alerta.</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <form class="form" [formGroup]="clinicalForm" (ngSubmit)="$event.preventDefault()">
+            <div class="form__grid form__grid--compact">
+              <div class="field field--full js-anim-row">
+                <label class="label">Intervalo signos vitales</label>
+                <select class="input" formControlName="vitalsInterval">
+                  <option value="4h">Cada 4h</option>
+                  <option value="6h">Cada 6h</option>
+                  <option value="8h">Cada 8h</option>
+                  <option value="12h">Cada 12h</option>
+                </select>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">SatO2 alerta (%)</label>
+                <input
+                  class="input"
+                  type="number"
+                  formControlName="spo2Alert"
+                  [class.input--invalid]="isInvalid(clinicalForm, 'spo2Alert')"
+                />
+                <div class="error" *ngIf="isInvalid(clinicalForm, 'spo2Alert')">Rango 50–100</div>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">Fiebre alerta (°C)</label>
+                <input
+                  class="input"
+                  type="number"
+                  step="0.1"
+                  formControlName="feverAlert"
+                  [class.input--invalid]="isInvalid(clinicalForm, 'feverAlert')"
+                />
+                <div class="error" *ngIf="isInvalid(clinicalForm, 'feverAlert')">Rango 35–42</div>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">Dolor alerta (0–10)</label>
+                <input
+                  class="input"
+                  type="number"
+                  formControlName="painAlert"
+                  [class.input--invalid]="isInvalid(clinicalForm, 'painAlert')"
+                />
+                <div class="error" *ngIf="isInvalid(clinicalForm, 'painAlert')">Rango 0–10</div>
+              </div>
+
+              <div class="field field--full js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="autoHistory" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Generar historial automático</span>
+                </label>
+                <div class="help">Al guardar, el sistema crea trazabilidad.</div>
+              </div>
+            </div>
+
+            <div class="form__actions">
+              <button class="btn btn--primary" type="button" (click)="guardarClinica()">
+                Guardar configuración clínica
+              </button>
+            </div>
+          </form>
+        </div>
+      </article>
+
+      <!-- 5) Notificaciones -->
+      <article class="card js-anim-card js-notif-pulse">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Notificaciones</h2>
+            <p class="card__subtitle">Alertas críticas, medicación atrasada y resumen.</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <form class="form" [formGroup]="notifForm" (ngSubmit)="$event.preventDefault()">
+            <div class="form__grid form__grid--compact">
+              <div class="field field--full js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="criticalAlerts" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Alertas críticas</span>
+                </label>
+              </div>
+
+              <div class="field field--full js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="lateMeds" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Medicaciones atrasadas</span>
+                </label>
+              </div>
+
+              <div class="field field--full js-anim-row">
+                <label class="toggle">
+                  <input type="checkbox" formControlName="dailySummary" />
+                  <span class="toggle__ui"></span>
+                  <span class="toggle__text">Resumen diario</span>
+                </label>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">Canal</label>
+                <select class="input" formControlName="channel">
+                  <option value="interno">Interno</option>
+                  <option value="email">Email</option>
+                  <option value="ambos">Ambos</option>
+                </select>
+              </div>
+
+              <div class="field js-anim-row">
+                <label class="label">Email de notificación</label>
+                <input
+                  class="input"
+                  type="email"
+                  formControlName="email"
+                  [class.input--invalid]="isInvalid(notifForm, 'email')"
+                  placeholder="alertas@dominio.com"
+                />
+                <div class="error" *ngIf="isInvalid(notifForm, 'email')">
+                  Email inválido.
+                </div>
+              </div>
+            </div>
+
+            <div class="form__actions">
+              <button class="btn btn--ghost" type="button" (click)="guardarNotificaciones()">
+                Guardar notificaciones
+              </button>
+            </div>
+          </form>
+        </div>
+      </article>
+
+      <!-- 6) Datos y Backup -->
+      <article class="card js-anim-card js-backup-pulse">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Datos y Backup</h2>
+            <p class="card__subtitle">Exportar/Importar y restaurar valores por defecto.</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <div class="btnRow js-anim-row">
+            <button class="btn btn--ghost" type="button" (click)="exportarDatos()">Exportar datos</button>
+            <button class="btn btn--ghost" type="button" (click)="importarDatos()">Importar datos</button>
+            <button class="btn btn--primary" type="button" (click)="openRestoreDefaults()">Restaurar valores por defecto</button>
+          </div>
+
+          <div class="warning">
+            <div class="warning__icon">ℹ️</div>
+            <div class="warning__body">
+              <div class="warning__title">Recomendación</div>
+              <div class="warning__text">
+                Antes de restaurar, realizá una exportación. En producción, esto afectaría preferencias y umbrales clínicos.
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <!-- MODAL: RESTORE DEFAULTS -->
+  <div class="modalWrap" *ngIf="showRestoreModal">
+    <div class="modalOverlay" (click)="cancelarRestore()"></div>
+
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Confirmar restauración">
+      <div class="modal__head">
+        <div class="modal__title">Restaurar valores por defecto</div>
+        <button class="modal__x" type="button" (click)="cancelarRestore()" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="modal__body">
+        <p>
+          Esto restablece <b>Interfaz</b>, <b>Configuración clínica</b> y <b>Notificaciones</b> a valores iniciales.
+        </p>
+        <div class="modal__note">
+          Consejo: exportá primero si necesitás conservar la configuración.
+        </div>
+      </div>
+
+      <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" (click)="cancelarRestore()">Cancelar</button>
+        <button class="btn btn--primary" type="button" (click)="confirmarRestore()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</section>

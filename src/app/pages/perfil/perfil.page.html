@@ -1,0 +1,477 @@
+<!-- perfil.page.html -->
+<section #pageRoot class="perfil-page">
+
+  <!-- TOASTS -->
+  <div class="toast-stack" aria-live="polite" aria-atomic="true">
+    <div
+      class="toast"
+      *ngFor="let t of toasts"
+      [class.toast--ok]="t.type === 'ok'"
+      [class.toast--warn]="t.type === 'warn'"
+      [class.toast--error]="t.type === 'error'"
+    >
+      <div class="toast__dot"></div>
+
+      <div class="toast__body">
+        <div class="toast__title">{{ t.title }}</div>
+        <div class="toast__msg" *ngIf="t.msg">{{ t.msg }}</div>
+      </div>
+
+      <button
+        class="toast__x"
+        type="button"
+        (click)="cerrarToast(t.id)"
+        aria-label="Cerrar notificación"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="page-header js-pulse-edit">
+    <div class="page-header__left">
+      <div class="eyebrow js-anim-header">Cuenta</div>
+      <h1 class="title js-anim-header">Perfil</h1>
+      <p class="desc js-anim-header">
+        Gestioná tu información, seguridad y preferencias de interfaz.
+      </p>
+    </div>
+
+    <div class="page-header__right js-anim-header">
+      <button class="btn btn--ghost" type="button" (click)="irAjustes()">Ajustes</button>
+      <button class="btn btn--primary" type="button" (click)="irDashboard()">Dashboard</button>
+    </div>
+  </header>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- LEFT COLUMN -->
+    <div class="left-col">
+
+      <!-- IDENTIDAD -->
+      <article class="card identity js-anim-card">
+        <div class="card__head">
+          <h2 class="card__title">Identidad</h2>
+          <span [class]="statusClass">{{ statusLabel }}</span>
+        </div>
+
+        <div class="identity__body">
+          <div class="avatarWrap js-anim-avatar">
+            <img class="avatar" [src]="profile.avatar_url" alt="Avatar de usuario" />
+            <div class="avatarHalo" aria-hidden="true"></div>
+          </div>
+
+          <div class="identity__meta">
+            <div class="nameRow">
+              <div class="name">
+                {{ profile.first_name }} {{ profile.last_name }}
+              </div>
+              <div class="role">
+                {{ roleLabel }}
+              </div>
+            </div>
+
+            <div class="line">
+              <span class="label">Email</span>
+              <span class="value">{{ profile.email }}</span>
+            </div>
+
+            <div class="line">
+              <span class="label">Tel</span>
+              <span class="value">{{ profile.phone }}</span>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi">
+                <div class="kpi__label">Registros hoy</div>
+                <div class="kpi__value">{{ kpiRegistrosHoy }}</div>
+              </div>
+              <div class="kpi kpi--alert">
+                <div class="kpi__label">Alertas</div>
+                <div class="kpi__value">{{ kpiAlertas }}</div>
+              </div>
+              <div class="kpi kpi--lime">
+                <div class="kpi__label">Residentes a cargo</div>
+                <div class="kpi__value">{{ kpiResidentesCargo }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- EDITAR DATOS -->
+      <article class="card js-anim-card js-pulse-edit">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Editar datos</h2>
+            <p class="card__subtitle">Actualiza tu información.</p>
+          </div>
+        </div>
+
+        <form class="form" [formGroup]="editForm" (ngSubmit)="guardarPerfil()">
+          <div class="form__grid">
+            <div class="field">
+              <label class="label">Nombre</label>
+              <input
+                class="input"
+                formControlName="first_name"
+                [class.input--invalid]="isInvalid(editForm,'first_name')"
+                placeholder="Nombre"
+              />
+              <div class="error" *ngIf="isInvalid(editForm,'first_name')">Requerido.</div>
+            </div>
+
+            <div class="field">
+              <label class="label">Apellido</label>
+              <input
+                class="input"
+                formControlName="last_name"
+                [class.input--invalid]="isInvalid(editForm,'last_name')"
+                placeholder="Apellido"
+              />
+              <div class="error" *ngIf="isInvalid(editForm,'last_name')">Requerido.</div>
+            </div>
+
+            <div class="field">
+              <label class="label">Teléfono</label>
+              <input
+                class="input"
+                formControlName="phone"
+                [class.input--invalid]="isInvalid(editForm,'phone')"
+                placeholder="091 000 000"
+              />
+              <div class="error" *ngIf="isInvalid(editForm,'phone')">Requerido (mín 6).</div>
+            </div>
+
+            <div class="field">
+              <label class="label">Email</label>
+              <input
+                class="input"
+                formControlName="email"
+                [class.input--invalid]="isInvalid(editForm,'email')"
+                placeholder="email@servimel.local"
+              />
+              <div class="error" *ngIf="isInvalid(editForm,'email')">Email inválido.</div>
+            </div>
+
+            <div class="field field--full">
+              <label class="label">Avatar (URL)</label>
+              <input
+                class="input"
+                formControlName="avatar_url"
+                [class.input--invalid]="isInvalid(editForm,'avatar_url')"
+                placeholder="https://..."
+              />
+              <div class="help">Tip: pegá una URL de imagen.</div>
+              <div class="error" *ngIf="isInvalid(editForm,'avatar_url')">Requerido.</div>
+            </div>
+          </div>
+
+          <div class="form__actions">
+            <button class="btn btn--primary" type="submit">
+              Guardar cambios
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+
+      <!-- SEGURIDAD -->
+      <article class="card js-anim-card js-pulse-security">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Seguridad</h2>
+            <p class="card__subtitle">Cambia tu contraseña y gestiona sesión.</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <div class="securityActions">
+            <button class="btn btn--primary" type="button" (click)="abrirModalPassword()">
+              Cambiar contraseña
+            </button>
+
+            <button class="btn btn--danger js-shake-logout" type="button" (click)="cerrarSesion()">
+              Cerrar sesión
+            </button>
+          </div>
+
+          <div class="noteLine">
+            Tip: el modal soporta ESC, click afuera, focus al primer campo y bloqueo de scroll.
+          </div>
+        </div>
+      </article>
+
+      <!-- PREFERENCIAS -->
+      <article class="card js-anim-card js-pulse-prefs">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Preferencias</h2>
+            <p class="card__subtitle">Se guardan en localStorage (servimel_settings_v1).</p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <div class="prefRow">
+            <div class="prefText">
+              <div class="prefTitle">Animaciones</div>
+              <div class="prefDesc">Si está OFF, no se ejecuta GSAP.</div>
+            </div>
+            <label class="switch" aria-label="Animaciones">
+              <input
+                type="checkbox"
+                [checked]="settings.animations"
+                (change)="toggleAnimations($any($event.target).checked)"
+              />
+              <span class="switch__ui"></span>
+            </label>
+          </div>
+
+          <div class="prefRow">
+            <div class="prefText">
+              <div class="prefTitle">Contraste alto</div>
+              <div class="prefDesc">Agrega clase <code>hi-contrast</code> al root.</div>
+            </div>
+            <label class="switch" aria-label="Contraste alto">
+              <input
+                type="checkbox"
+                [checked]="settings.hi_contrast"
+                (change)="toggleHiContrast($any($event.target).checked)"
+              />
+              <span class="switch__ui"></span>
+            </label>
+          </div>
+
+          <div class="prefRow">
+            <div class="prefText">
+              <div class="prefTitle">Modo compacto</div>
+              <div class="prefDesc">Agrega clase <code>ui-compact</code> al root.</div>
+            </div>
+            <label class="switch" aria-label="Modo compacto">
+              <input
+                type="checkbox"
+                [checked]="settings.compact"
+                (change)="toggleCompact($any($event.target).checked)"
+              />
+              <span class="switch__ui"></span>
+            </label>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="sliderRow">
+            <div class="prefText">
+              <div class="prefTitle">Intensidad ADN</div>
+              <div class="prefDesc">Controla <code>--dna-opacity</code> (0.10–0.50).</div>
+            </div>
+
+            <div class="slider">
+              <input
+                type="range"
+                min="0.10"
+                max="0.50"
+                step="0.01"
+                [value]="settings.dna_opacity"
+                (input)="setDnaOpacity($any($event.target).value)"
+              />
+              <div class="slider__val">{{ settings.dna_opacity | number:'1.2-2' }}</div>
+            </div>
+          </div>
+
+          <div class="form__actions form__actions--left">
+            <button class="btn btn--ghost" type="button" (click)="guardarPreferencias()">
+              Guardar preferencias
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <!-- ACTIVIDAD -->
+      <article class="card js-anim-card">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Actividad reciente</h2>
+            <p class="card__subtitle">Eventos reales del usuario desde el backend.</p>
+          </div>
+
+          <div class="chips" role="tablist" aria-label="Filtro de actividad">
+            <button class="chipBtn" type="button" [class.active]="activityRange==='hoy'" (click)="setActivityRange('hoy')">
+              Hoy
+            </button>
+            <button class="chipBtn" type="button" [class.active]="activityRange==='7d'" (click)="setActivityRange('7d')">
+              7 días
+            </button>
+            <button class="chipBtn" type="button" [class.active]="activityRange==='todo'" (click)="setActivityRange('todo')">
+              Todo
+            </button>
+          </div>
+        </div>
+
+        <div class="activity">
+          <div class="activity__meta">
+            <div class="muted">
+              Eventos: <strong>{{ activityFiltered.length }}</strong>
+            </div>
+            <div class="muted" *ngIf="activityLastUpdate">
+              Últ. actualización: <strong>{{ activityLastUpdate | date:'dd/MM HH:mm' }}</strong>
+            </div>
+          </div>
+
+          <div class="timeline" [attr.aria-busy]="activityLoading">
+            <div class="empty" *ngIf="activityLoading">
+              Cargando actividad…
+            </div>
+
+            <div
+              class="timelineItem js-activity-item"
+              *ngFor="let a of activityFiltered"
+            >
+              <div class="timelineDot" aria-hidden="true"></div>
+
+              <div class="timelineCard">
+                <div class="timelineTop">
+                  <div class="timelineTitle">
+                    <span class="ico" aria-hidden="true">{{ activityIcon(a.type) }}</span>
+                    <span>{{ a.title }}</span>
+                  </div>
+
+                  <div class="timelineTime">
+                    {{ a.at | date:'dd/MM · HH:mm' }}
+                  </div>
+                </div>
+
+                <div class="timelineChips">
+                  <span [class]="activityChipClass(a.type)">{{ activityTypeLabel(a.type) }}</span>
+                  <span class="chip chip--muted">Por: {{ a.by }}</span>
+                </div>
+
+                <div class="timelineDetail">
+                  {{ a.detail }}
+                </div>
+              </div>
+            </div>
+
+            <div class="empty" *ngIf="!activityLoading && !activityFiltered.length">
+              Sin actividad para el rango seleccionado.
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <!-- MODAL: CAMBIAR CONTRASEÑA -->
+  <div
+    *ngIf="passOpen"
+    class="modalOverlay"
+    #passOverlay
+    (click)="onOverlayClick($event)"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Cambiar contraseña"
+  >
+    <div class="modal" #passModal>
+      <div class="modal__head">
+        <div>
+          <div class="modal__title">Cambiar contraseña</div>
+          <div class="modal__sub">Mínimo 8 caracteres. Debe coincidir la confirmación.</div>
+        </div>
+
+        <button class="iconBtn" type="button" (click)="cerrarModalPassword()" aria-label="Cerrar modal">
+          ✕
+        </button>
+      </div>
+
+      <form class="modal__body" [formGroup]="passForm" (ngSubmit)="guardarPassword()">
+        <div class="modalGrid">
+          <div class="field field--full">
+            <label class="label">Actual</label>
+            <input
+              #passFirstInput
+              class="input"
+              type="password"
+              formControlName="actual"
+              [class.input--invalid]="isInvalid(passForm,'actual')"
+              placeholder="••••••••"
+              autocomplete="current-password"
+            />
+            <div class="error" *ngIf="isInvalid(passForm,'actual')">Requerida (mín 8).</div>
+          </div>
+
+          <div class="field">
+            <label class="label">Nueva</label>
+            <input
+              class="input"
+              type="password"
+              formControlName="nueva"
+              [class.input--invalid]="isInvalid(passForm,'nueva')"
+              placeholder="••••••••"
+              autocomplete="new-password"
+            />
+            <div class="error" *ngIf="isInvalid(passForm,'nueva')">Mínimo 8.</div>
+          </div>
+
+          <div class="field">
+            <label class="label">Repetir</label>
+            <input
+              class="input"
+              type="password"
+              formControlName="repetir"
+              [class.input--invalid]="isInvalid(passForm,'repetir') || passForm.hasError('passwordsMismatch')"
+              placeholder="••••••••"
+              autocomplete="new-password"
+            />
+            <div class="error" *ngIf="passForm.hasError('passwordsMismatch') && (passForm.dirty || passForm.touched)">
+              No coincide.
+            </div>
+          </div>
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" (click)="cerrarModalPassword()">Cancelar</button>
+          <button class="btn btn--primary" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ✅ LOGOUT MODAL (IGUAL QUE LOGIN SUCCESS) -->
+  <div
+    class="logout-backdrop"
+    *ngIf="logoutOpen"
+    #logoutBackdrop
+    role="dialog"
+    aria-modal="true"
+    aria-label="Cierre de sesión exitoso"
+  >
+    <div class="logout-modal" #logoutModal>
+      <div class="logout-icon" aria-hidden="true">
+        <div class="logout-ring"></div>
+
+        <div class="logout-badge">
+          <svg viewBox="0 0 24 24" class="logout-check" aria-hidden="true">
+            <path
+              d="M20 6L9 17l-5-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <div class="logout-text">
+        <div class="logout-title">Sesión cerrada</div>
+        <div class="logout-sub">Volviendo al inicio…</div>
+      </div>
+    </div>
+  </div>
+
+</section>

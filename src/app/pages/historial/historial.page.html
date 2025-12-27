@@ -1,0 +1,292 @@
+<!-- historial.page.html -->
+<!-- =========================================================
+     SERVIMEL — Historial (Clínico)
+========================================================== -->
+
+<section #pageRoot class="historial-page">
+  <!-- HEADER -->
+  <header class="page-header js-anim-card">
+    <div class="page-header__left">
+      <div class="eyebrow js-anim-header">Clínica</div>
+      <h1 class="title js-anim-header">Historial</h1>
+      <p class="desc js-anim-header">
+        Evolución clínica por residente y por evento.
+      </p>
+
+      <div class="actions js-anim-header">
+        <a class="btn btn--ghost" routerLink="/residentes">Ir a Residentes</a>
+        <a class="btn btn--primary" routerLink="/enfermeria">Ir a Enfermería</a>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <aside class="kpi-panel js-anim-card" aria-label="Panel KPIs">
+      <div class="kpi js-anim-kpi">
+        <div class="kpi__label">Eventos</div>
+        <div class="kpi__value">{{ kpis.eventos }}</div>
+        <div class="kpi__hint">Según filtro actual</div>
+      </div>
+
+      <div class="kpi kpi--alert js-anim-kpi">
+        <div class="kpi__label">Alertas</div>
+        <div class="kpi__value">{{ kpis.alertas }}</div>
+        <div class="kpi__hint">Dentro del rango</div>
+      </div>
+
+      <div class="kpi kpi--pending js-anim-kpi">
+        <div class="kpi__label">Med pendiente</div>
+        <div class="kpi__value">{{ kpis.medsPendientes }}</div>
+        <div class="kpi__hint">Pend./Atrasadas</div>
+      </div>
+
+      <div class="kpi kpi--last js-anim-kpi">
+        <div class="kpi__label">Última actualización</div>
+        <div class="kpi__value kpi__value--small">{{ kpis.ultimaActualizacion }}</div>
+        <div class="kpi__hint">Primer evento listado</div>
+      </div>
+    </aside>
+  </header>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+    <!-- LEFT COL: filtros + timeline -->
+    <div class="left-col js-anim-card">
+      <!-- filtros -->
+      <section class="filters">
+        <div class="filters__row">
+          <div class="search">
+            <label class="label">Buscar</label>
+            <input
+              class="input"
+              type="text"
+              placeholder="Residente, CI, hab., texto del evento…"
+              [value]="search"
+              (input)="onSearchInput(($any($event.target).value || ''))"
+            />
+          </div>
+
+          <div class="order">
+            <label class="label">Orden</label>
+            <select class="input" [value]="order" (change)="setOrder(($any($event.target).value))">
+              <option value="desc">Más reciente primero</option>
+              <option value="asc">Más antiguo primero</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- chips: tipo -->
+        <div class="chips" role="tablist" aria-label="Filtro por tipo">
+          <button
+            type="button"
+            class="chipBtn"
+            [class.is-active]="activeType==='all'"
+            (click)="setType('all')"
+            role="tab"
+            [attr.aria-selected]="activeType==='all'"
+          >
+            Todos
+          </button>
+
+          <button
+            type="button"
+            class="chipBtn chipBtn--signos"
+            [class.is-active]="activeType==='signos'"
+            (click)="setType('signos')"
+            role="tab"
+            [attr.aria-selected]="activeType==='signos'"
+          >
+            Signos
+          </button>
+
+          <button
+            type="button"
+            class="chipBtn chipBtn--medicacion"
+            [class.is-active]="activeType==='medicacion'"
+            (click)="setType('medicacion')"
+            role="tab"
+            [attr.aria-selected]="activeType==='medicacion'"
+          >
+            Medicación
+          </button>
+
+          <button
+            type="button"
+            class="chipBtn chipBtn--observacion"
+            [class.is-active]="activeType==='observacion'"
+            (click)="setType('observacion')"
+            role="tab"
+            [attr.aria-selected]="activeType==='observacion'"
+          >
+            Observación
+          </button>
+
+          <button
+            type="button"
+            class="chipBtn chipBtn--alerta"
+            [class.is-active]="activeType==='alerta'"
+            (click)="setType('alerta')"
+            role="tab"
+            [attr.aria-selected]="activeType==='alerta'"
+          >
+            Alerta
+          </button>
+        </div>
+
+        <!-- rango -->
+        <div class="range" role="tablist" aria-label="Rango rápido">
+          <button
+            type="button"
+            class="rangeBtn"
+            [class.is-active]="activeRange==='hoy'"
+            (click)="setRange('hoy')"
+            role="tab"
+            [attr.aria-selected]="activeRange==='hoy'"
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            class="rangeBtn"
+            [class.is-active]="activeRange==='7d'"
+            (click)="setRange('7d')"
+            role="tab"
+            [attr.aria-selected]="activeRange==='7d'"
+          >
+            7 días
+          </button>
+          <button
+            type="button"
+            class="rangeBtn"
+            [class.is-active]="activeRange==='30d'"
+            (click)="setRange('30d')"
+            role="tab"
+            [attr.aria-selected]="activeRange==='30d'"
+          >
+            30 días
+          </button>
+          <button
+            type="button"
+            class="rangeBtn"
+            [class.is-active]="activeRange==='todo'"
+            (click)="setRange('todo')"
+            role="tab"
+            [attr.aria-selected]="activeRange==='todo'"
+          >
+            Todo
+          </button>
+        </div>
+      </section>
+
+      <!-- timeline -->
+      <section class="timeline" aria-label="Listado de eventos">
+        <div class="timeline__head">
+          <div class="timeline__title">Eventos</div>
+          <div class="timeline__hint">Click para ver detalle</div>
+        </div>
+
+        <div class="timeline__list" *ngIf="filteredSorted.length > 0; else empty">
+          <button
+            type="button"
+            class="row js-anim-row"
+            *ngFor="let e of filteredSorted; trackBy: trackById"
+            (click)="selectEvent(e)"
+            [class.is-selected]="selectedId===e.id"
+          >
+            <div class="row__icon" [attr.data-type]="e.tipo">{{ typeIcon(e.tipo) }}</div>
+
+            <div class="row__main">
+              <div class="row__top">
+                <div class="row__title">
+                  {{ e.titulo }}
+                </div>
+                <div class="row__time mono">
+                  {{ e.fechaIso | date:'dd/MM HH:mm' }}
+                </div>
+              </div>
+
+              <div class="row__chips">
+                <span [class]="typeClass(e.tipo)">{{ typeLabel(e.tipo) }}</span>
+                <span [class]="residentStateClass(e.estadoResidente)">{{ estadoLabel(e.estadoResidente) }}</span>
+                <span class="chip chip--by">por {{ e.by }}</span>
+              </div>
+
+              <div class="row__preview">
+                {{ e.residenteNombre }} · Hab. {{ e.habitacion }} — {{ e.detalle }}
+              </div>
+            </div>
+
+            <div class="row__chev">›</div>
+          </button>
+        </div>
+
+        <ng-template #empty>
+          <div class="emptyState">
+            Sin resultados.
+          </div>
+        </ng-template>
+      </section>
+    </div>
+
+    <!-- RIGHT COL: detalle -->
+    <aside class="right-col js-anim-card">
+      <section class="detail js-detail-panel">
+        <div class="detail__head">
+          <div class="detail__eyebrow">Detalle del evento</div>
+          <div class="detail__hint">Seleccioná un evento a la izquierda</div>
+        </div>
+
+        <ng-container *ngIf="selected as s; else noSel">
+          <div class="detail__title">
+            {{ s.titulo }}
+          </div>
+
+          <div class="detail__meta">
+            <span class="mono">{{ s.fechaIso | date:'dd/MM/yyyy HH:mm' }}</span>
+            <span class="sep">·</span>
+            <span [class]="typeClass(s.tipo)">{{ typeLabel(s.tipo) }}</span>
+          </div>
+
+          <div class="detail__resident panel">
+            <div class="rTop">
+              <div class="rName">{{ s.residenteNombre }}</div>
+              <span [class]="residentStateClass(s.estadoResidente)">{{ estadoLabel(s.estadoResidente) }}</span>
+            </div>
+
+            <div class="rGrid">
+              <div class="rItem">
+                <span>Habitación</span>
+                <b>{{ s.habitacion }}</b>
+              </div>
+
+              <div class="rItem" *ngIf="s.ci">
+                <span>CI</span>
+                <b class="mono">{{ s.ci }}</b>
+              </div>
+
+              <!-- ✅ TS-aligned: selectedResidente.document_number -->
+              <div class="rItem" *ngIf="selectedResidente?.document_number && !s.ci">
+                <span>CI</span>
+                <b class="mono">{{ selectedResidente?.document_number }}</b>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail__body">
+            <div class="detail__label">Detalle</div>
+            <pre class="detail__text">{{ s.detalle }}</pre>
+          </div>
+
+          <div class="detail__by">
+            Registrado por: <b>{{ s.by }}</b>
+          </div>
+        </ng-container>
+
+        <ng-template #noSel>
+          <div class="emptyDetail">
+            No hay evento seleccionado.
+          </div>
+        </ng-template>
+      </section>
+    </aside>
+  </div>
+</section>

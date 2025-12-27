@@ -1,0 +1,70 @@
+<section class="dash" #pageRoot>
+  <!-- HERO -->
+  <header class="dash__hero" data-anim="head">
+    <div class="dash__heroLeft">
+      <div class="eyebrow">Panel</div>
+      <h2>Dashboard</h2>
+      <p>Accesos rápidos y estado general del sistema.</p>
+
+      <div class="chips">
+        <span class="chip chip--mvp">MVP</span>
+        <span class="chip">Trazabilidad activa</span>
+        <span class="chip chip--ok">Online</span>
+      </div>
+    </div>
+
+    <div class="dash__heroActions">
+      <a class="btn btn--primary" routerLink="/residentes">Ir a Residentes</a>
+      <a class="btn btn--ghost" routerLink="/enfermeria">Registrar signos</a>
+    </div>
+  </header>
+
+  <!-- KPI STRIP -->
+  <section class="dash__section" aria-label="Indicadores">
+    <div class="grid grid--kpi">
+      <article
+        class="card card--kpi"
+        *ngFor="let k of kpis"
+        data-anim="kpi-card"
+        [attr.data-tone]="k.tone || 'info'"
+      >
+        <div class="card__inner">
+          <div class="card__titleRow">
+            <div class="card__title">{{ k.title }}</div>
+            <span class="dot" aria-hidden="true"></span>
+          </div>
+
+          <div class="card__value">{{ k.value }}</div>
+          <div class="card__hint">{{ k.hint }}</div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- QUICK ACTIONS -->
+  <section class="dash__section" aria-label="Accesos rápidos">
+    <div class="sectionHead">
+      <h3>Accesos rápidos</h3>
+      <p>Entradas directas a los flujos más usados.</p>
+    </div>
+
+    <div class="grid grid--quick">
+      <a
+        class="card card--link card--quick"
+        *ngFor="let q of quick"
+        [routerLink]="q.path"
+        data-anim="quick-card"
+      >
+        <div class="card__inner">
+          <div class="card__titleRow">
+            <div class="card__title">{{ q.label }}</div>
+            <span class="pill">→</span>
+          </div>
+
+          <div class="card__hint">{{ q.desc }}</div>
+          <div class="card__go">Abrir →</div>
+        </div>
+      </a>
+    </div>
+  </section>
+</section>

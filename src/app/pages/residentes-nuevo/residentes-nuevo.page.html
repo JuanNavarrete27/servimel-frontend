@@ -1,0 +1,260 @@
+<section class="page" (mousemove)="onMove($event)" (mouseleave)="onLeave()">
+  <!-- TOASTS -->
+  <div class="toast-stack" aria-live="polite" aria-atomic="true">
+    <div
+      class="toast"
+      *ngFor="let t of toasts"
+      [class.toast--ok]="t.type === 'ok'"
+      [class.toast--warn]="t.type === 'warn'"
+      [class.toast--error]="t.type === 'error'"
+    >
+      <div class="toast__dot"></div>
+
+      <div class="toast__body">
+        <div class="toast__title">{{ t.title }}</div>
+        <div class="toast__msg" *ngIf="t.msg">{{ t.msg }}</div>
+      </div>
+
+      <button
+        class="toast__x"
+        type="button"
+        (click)="cerrarToast(t.id)"
+        aria-label="Cerrar"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <header class="head">
+    <div class="head__left">
+      <div class="eyebrow">Alta</div>
+      <h2>Crear residente</h2>
+      <p>Completá los datos y guardá el registro. Podés abrir el detalle al terminar.</p>
+
+      <div class="mini">
+        <span class="mini__chip mini__chip--req">
+          <span class="dot dot--lime"></span>
+          Campos obligatorios: <b>*</b>
+        </span>
+
+        <span class="mini__chip" [attr.data-state]="estado">
+          Estado:
+          <b>{{ estadoLabel(estado) }}</b>
+        </span>
+      </div>
+    </div>
+
+    <div class="head__right">
+      <button class="btn" type="button" (click)="cancel()">Volver</button>
+      <button class="btn btn--primary" type="button" (click)="submit()" [disabled]="saving">
+        {{ saving ? 'Guardando…' : 'Crear residente' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- FORM CARD -->
+    <div class="card card--form">
+      <div class="card__bar" aria-hidden="true"></div>
+
+      <div class="card__title">
+        <div class="k">Datos principales</div>
+        <div class="hint">Usá nombres reales. El estado te cambia el estilo del preview.</div>
+      </div>
+
+      <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="row2">
+          <div class="field">
+            <label class="label">Nombre <span class="req">*</span></label>
+            <input
+              class="input"
+              formControlName="first_name"
+              placeholder="Ej: Marta"
+              [class.input--invalid]="isInvalid('first_name')"
+              autocomplete="given-name"
+            />
+            <div class="error" *ngIf="isInvalid('first_name')">Ingresá un nombre válido.</div>
+          </div>
+
+          <div class="field">
+            <label class="label">Apellido <span class="req">*</span></label>
+            <input
+              class="input"
+              formControlName="last_name"
+              placeholder="Ej: Pereira"
+              [class.input--invalid]="isInvalid('last_name')"
+              autocomplete="family-name"
+            />
+            <div class="error" *ngIf="isInvalid('last_name')">Ingresá un apellido válido.</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label class="label">Documento</label>
+            <input class="input" formControlName="document_number" placeholder="CI / DNI (opcional)" />
+          </div>
+
+          <div class="field">
+            <label class="label">Habitación</label>
+            <input class="input" formControlName="room" placeholder="Ej: 12B" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label">Estado <span class="req">*</span></label>
+
+          <div class="stateChips" role="tablist" aria-label="Estado del residente">
+            <button
+              type="button"
+              class="stateChip"
+              [class.is-active]="estado==='estable'"
+              data-state="estable"
+              (click)="setEstado('estable')"
+            >
+              Estable
+            </button>
+
+            <button
+              type="button"
+              class="stateChip"
+              [class.is-active]="estado==='observacion'"
+              data-state="observacion"
+              (click)="setEstado('observacion')"
+            >
+              Observación
+            </button>
+
+            <button
+              type="button"
+              class="stateChip"
+              [class.is-active]="estado==='critico'"
+              data-state="critico"
+              (click)="setEstado('critico')"
+            >
+              Crítico
+            </button>
+          </div>
+
+          <div class="error" *ngIf="isInvalid('status')">Seleccioná un estado.</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="card__title">
+          <div class="k">Contacto de emergencia</div>
+          <div class="hint">Opcional (pero recomendado).</div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label class="label">Nombre contacto</label>
+            <input class="input" formControlName="emergency_contact_name" placeholder="Ej: Juan Pérez" />
+          </div>
+
+          <div class="field">
+            <label class="label">Teléfono contacto</label>
+            <input class="input" formControlName="emergency_contact_phone" placeholder="Ej: 09 123 456" />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="card__title">
+          <div class="k">Notas</div>
+          <div class="hint">Observaciones generales (no clínicas). Mantenerlo breve.</div>
+        </div>
+
+        <div class="field">
+          <label class="label">Notas</label>
+          <textarea class="textarea" formControlName="notes" rows="4" placeholder="Escribí un resumen…"></textarea>
+        </div>
+
+        <div class="row2 row2--toggle">
+          <div class="field">
+            <label class="label">Activo</label>
+            <div class="toggle">
+              <input id="active" type="checkbox" formControlName="is_active" />
+              <label for="active" class="toggle__track">
+                <span class="toggle__thumb"></span>
+              </label>
+              <span class="toggle__text">{{ form.get('is_active')?.value ? 'Sí' : 'No' }}</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="inlineError" *ngIf="lastError">
+              {{ lastError }}
+            </div>
+          </div>
+        </div>
+
+        <!-- ACTIONS (sticky en mobile) -->
+        <div class="actions">
+          <button class="btn" type="button" (click)="cancel()" [disabled]="saving">
+            Cancelar
+          </button>
+
+          <button class="btn btn--primary" type="submit" [disabled]="saving">
+            {{ saving ? 'Creando…' : 'Crear y abrir' }}
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- PREVIEW CARD -->
+    <aside class="card card--preview" [attr.data-state]="estado">
+      <div class="card__bar" aria-hidden="true"></div>
+
+      <div class="previewTop">
+        <div class="avatar" aria-hidden="true">
+          <span class="avatar__ring"></span>
+          <span class="avatar__txt">{{ (fullName || 'R').slice(0,1).toUpperCase() }}</span>
+        </div>
+
+        <div class="previewTitle">
+          <div class="name">{{ fullName }}</div>
+          <div class="sub">
+            <span class="pill" [attr.data-state]="estado">{{ estadoLabel(estado) }}</span>
+            <span class="sep">•</span>
+            <span class="muted">
+              Hab. {{ form.get('room')?.value || '—' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="previewBody">
+        <div class="infoLine">
+          <span class="k">Documento</span>
+          <span class="v">{{ form.get('document_number')?.value || '—' }}</span>
+        </div>
+
+        <div class="infoLine">
+          <span class="k">Contacto</span>
+          <span class="v">
+            {{ form.get('emergency_contact_name')?.value || '—' }}
+            <span class="muted" *ngIf="form.get('emergency_contact_phone')?.value">
+              ({{ form.get('emergency_contact_phone')?.value }})
+            </span>
+          </span>
+        </div>
+
+        <div class="infoLine">
+          <span class="k">Activo</span>
+          <span class="v">{{ form.get('is_active')?.value ? 'Sí' : 'No' }}</span>
+        </div>
+
+        <div class="noteBox" *ngIf="form.get('notes')?.value">
+          <div class="noteBox__k">Notas</div>
+          <div class="noteBox__v">{{ form.get('notes')?.value }}</div>
+        </div>
+
+        <div class="ghost" *ngIf="!form.get('notes')?.value">
+          Tip: agregá una nota corta para que quede claro el contexto del residente.
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>

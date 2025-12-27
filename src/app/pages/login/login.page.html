@@ -1,0 +1,94 @@
+<section class="auth" #authRoot (mousemove)="onMouseMove($event)">
+  <!-- BG FX (encima del ADN global, pero sutil) -->
+  <div class="auth__bg" aria-hidden="true">
+    <div class="orb orb--a"></div>
+    <div class="orb orb--b"></div>
+    <div class="orb orb--c"></div>
+    <div class="grid"></div>
+    <div class="grain"></div>
+  </div>
+
+  <!-- CARD -->
+  <div class="auth__card" #cardEl>
+    <div class="auth__top">
+      <div class="pill">
+        <span class="dot" aria-hidden="true"></span>
+        Acceso interno
+      </div>
+
+      <div class="auth__brand">
+        <div class="auth__brandTitle">Servimel</div>
+        <div class="auth__brandTag">Sistema interno</div>
+      </div>
+    </div>
+
+    <div class="auth__title" data-anim="title">
+      <h1>Iniciar sesión</h1>
+      <p>Ingresá con tus credenciales para acceder al panel.</p>
+    </div>
+
+    <form class="auth__form" (ngSubmit)="login()" autocomplete="on">
+      <div class="field" data-anim="field">
+        <span>Email</span>
+        <input
+          type="email"
+          name="email"
+          [(ngModel)]="email"
+          placeholder="tu@servimel.com"
+          autocomplete="email"
+        />
+      </div>
+
+      <div class="field" data-anim="field">
+        <span>Contraseña</span>
+        <input
+          type="password"
+          name="password"
+          [(ngModel)]="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+        />
+      </div>
+
+      <div class="error" *ngIf="error">{{ error }}</div>
+
+      <button
+        class="btn"
+        #btnEl
+        type="submit"
+        [disabled]="loading"
+        data-anim="cta"
+        [attr.aria-busy]="loading ? 'true' : 'false'"
+      >
+        <span *ngIf="loading" class="btn__spinner" aria-hidden="true"></span>
+        <span>{{ loading ? 'Ingresando…' : 'Entrar' }}</span>
+      </button>
+
+      <div class="hint" data-anim="hint">
+        Mock: por ahora no valida nada. Te redirige al Dashboard.
+      </div>
+    </form>
+  </div>
+
+  <!-- ✅ SUCCESS MODAL -->
+  <div
+    class="success-backdrop"
+    *ngIf="successOpen"
+    #successBackdrop
+    role="dialog"
+    aria-modal="true"
+    aria-label="Inicio de sesión exitoso"
+  >
+    <div class="success-modal" #successModal>
+      <div class="success-icon" aria-hidden="true">
+        <div class="success-ring"></div>
+        <div class="success-check">✓</div>
+      </div>
+
+      <div class="success-text">
+        <div class="success-title">Inicio de sesión exitoso</div>
+        <div class="success-sub">Redirigiendo al Dashboard…</div>
+      </div>
+    </div>
+  </div>
+</section>

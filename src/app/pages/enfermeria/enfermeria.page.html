@@ -1,0 +1,482 @@
+<!-- enfermeria.page.html -->
+<!-- =========================================================
+     SERVIMEL — Enfermería (Ingreso rápido)
+     ✅ Ajustado a TS (DB-aligned):
+     - Residente: first_name/last_name/room
+     - Vitals: resident_id, taken_at, bp_systolic/bp_diastolic, hr, temp_c, spo2, pain, notes
+     - Meds: resident_id, scheduled_at, drug_name, dose, status
+     - Obs: resident_id, observed_at, type, text
+========================================================== -->
+
+<section #pageRoot class="enfermeria-page" [class.is-navigating]="isNavigating">
+  <!-- Wipe de navegación (salida) -->
+  <div class="navWipe" aria-hidden="true"></div>
+
+  <!-- HEADER -->
+  <header class="page-header">
+    <div class="page-header__left">
+      <div class="eyebrow js-anim-header">Enfermería</div>
+      <h1 class="title js-anim-header">Ingreso rápido</h1>
+      <p class="desc js-anim-header">
+        Registrá signos vitales, medicación y observaciones sin fricción.
+        Todo queda trazado para el historial clínico.
+      </p>
+
+      <div class="actions js-anim-header">
+        <a class="btn btn--primary" href="/historial" (click)="go('/historial', $event)">
+          Ir a Historial
+        </a>
+        <a class="btn btn--ghost" href="/residentes" (click)="go('/residentes', $event)">
+          Ver Residentes
+        </a>
+      </div>
+    </div>
+
+    <!-- KPI PANEL -->
+    <aside class="kpi-panel panel js-anim-card" aria-label="Panel resumen">
+      <div class="kpi">
+        <div class="kpi__label">Registros hoy</div>
+        <div class="kpi__value">{{ kpiRegistrosHoy }}</div>
+        <div class="kpi__hint">Signos + Meds + Obs</div>
+      </div>
+
+      <div class="kpi kpi--alert">
+        <div class="kpi__label">Alertas</div>
+        <div class="kpi__value">{{ kpiAlertas }}</div>
+        <div class="kpi__hint">Observaciones</div>
+      </div>
+
+      <div class="kpi kpi--pending">
+        <div class="kpi__label">Medicaciones</div>
+        <div class="kpi__value">{{ kpiMedsPendientes }}</div>
+        <div class="kpi__hint">Pend./Atrasadas</div>
+      </div>
+    </aside>
+  </header>
+
+  <!-- GRID 2 COL -->
+  <div class="layout">
+    <!-- LEFT: SIGNOS -->
+    <article class="card js-anim-card">
+      <div class="card__head">
+        <div>
+          <h2 class="card__title">Signos Vitales</h2>
+          <p class="card__subtitle">Carga rápida con validación mínima.</p>
+        </div>
+
+        <!-- Búsqueda opcional -->
+        <div class="search">
+          <input
+            type="text"
+            class="input input--search"
+            placeholder="Buscar residente (opcional)…"
+            [value]="residentSearch"
+            (input)="residentSearch = ($any($event.target).value || '')"
+          />
+        </div>
+      </div>
+
+      <form class="form" [formGroup]="vitalsForm" (ngSubmit)="guardarSignos()">
+        <div class="form__grid">
+          <!-- Residente -->
+          <div class="field field--full">
+            <label class="label">Residente</label>
+            <select
+              class="input"
+              formControlName="residenteId"
+              [class.input--invalid]="isInvalid(vitalsForm, 'residenteId')"
+            >
+              <option [ngValue]="null">Seleccionar…</option>
+              <option *ngFor="let r of residentesFiltrados" [ngValue]="r.id">
+                {{ r.first_name }} {{ r.last_name }} · Hab. {{ r.room || '—' }}
+              </option>
+            </select>
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'residenteId')">
+              Seleccioná un residente.
+            </div>
+          </div>
+
+          <!-- TA -->
+          <div class="field">
+            <label class="label">Tensión arterial</label>
+            <input
+              class="input"
+              placeholder="120/80"
+              formControlName="tension"
+              [class.input--invalid]="isInvalid(vitalsForm, 'tension')"
+            />
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'tension')">
+              Formato válido: 120/80
+            </div>
+          </div>
+
+          <!-- FC -->
+          <div class="field">
+            <label class="label">Frecuencia cardíaca</label>
+            <input
+              class="input"
+              type="number"
+              placeholder="78"
+              formControlName="fc"
+              [class.input--invalid]="isInvalid(vitalsForm, 'fc')"
+            />
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'fc')">
+              Rango sugerido: 20–250
+            </div>
+          </div>
+
+          <!-- Temp -->
+          <div class="field">
+            <label class="label">Temperatura (°C)</label>
+            <input
+              class="input"
+              type="number"
+              step="0.1"
+              placeholder="36.7"
+              formControlName="temp"
+              [class.input--invalid]="isInvalid(vitalsForm, 'temp')"
+            />
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'temp')">
+              Rango sugerido: 30–45
+            </div>
+          </div>
+
+          <!-- SpO2 -->
+          <div class="field">
+            <label class="label">Saturación O2 (%)</label>
+            <input
+              class="input"
+              type="number"
+              placeholder="98"
+              formControlName="spo2"
+              [class.input--invalid]="isInvalid(vitalsForm, 'spo2')"
+            />
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'spo2')">
+              Rango: 0–100
+            </div>
+          </div>
+
+          <!-- Glucemia (opc - UX legacy) -->
+          <div class="field">
+            <label class="label">Glucemia (opc)</label>
+            <input
+              class="input"
+              type="number"
+              placeholder="110"
+              formControlName="glucemia"
+              [class.input--invalid]="isInvalid(vitalsForm, 'glucemia')"
+            />
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'glucemia')">
+              Valor inválido.
+            </div>
+          </div>
+
+          <!-- Dolor -->
+          <div class="field">
+            <label class="label">Dolor (0–10)</label>
+            <input
+              class="input"
+              type="number"
+              placeholder="0"
+              formControlName="dolor"
+              [class.input--invalid]="isInvalid(vitalsForm, 'dolor')"
+            />
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'dolor')">
+              Entre 0 y 10.
+            </div>
+          </div>
+
+          <!-- Notas -->
+          <div class="field field--full">
+            <label class="label">Notas cortas</label>
+            <input
+              class="input"
+              placeholder="Ej: hidratación, mareo, control..."
+              formControlName="notas"
+              [class.input--invalid]="isInvalid(vitalsForm, 'notas')"
+            />
+            <div class="help">Máx 140 caracteres.</div>
+          </div>
+        </div>
+
+        <div class="form__actions">
+          <button class="btn btn--primary" type="submit">
+            Guardar registro
+          </button>
+        </div>
+      </form>
+
+      <!-- Últimos registros -->
+      <div class="list">
+        <div class="list__head">
+          <div class="list__title">Últimos registros</div>
+          <div class="list__hint">Se muestran hasta 6</div>
+        </div>
+
+        <div class="list__items">
+          <div
+            class="list-item js-anim-row"
+            *ngFor="let v of lastVitals; let i = index"
+            [class.js-row-new]="i === 0"
+          >
+            <div class="list-item__main">
+              <div class="list-item__top">
+                <div class="name">
+                  {{ residenteLabel(v.resident_id) }}
+                </div>
+                <div class="time">
+                  {{ v.taken_at | date:'HH:mm' }}
+                </div>
+              </div>
+
+              <div class="meta">
+                <span class="pill">TA: {{ vitalBpLabel(v) }}</span>
+                <span class="pill">FC: {{ v.hr }}</span>
+                <span class="pill">Temp: {{ v.temp_c }}</span>
+                <span class="pill">SpO2: {{ v.spo2 }}%</span>
+                <span class="pill">Dolor: {{ v.pain }}/10</span>
+              </div>
+
+              <div class="note" *ngIf="v.notes">
+                {{ v.notes }}
+              </div>
+            </div>
+          </div>
+
+          <div class="empty" *ngIf="!lastVitals.length">
+            Sin registros todavía.
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+      <!-- MEDICACIÓN -->
+      <article class="card js-anim-card">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Medicación</h2>
+            <p class="card__subtitle">Registro rápido por estado.</p>
+          </div>
+        </div>
+
+        <form class="form" [formGroup]="medForm" (ngSubmit)="registrarMedicacion()">
+          <div class="form__grid form__grid--compact">
+            <div class="field field--full">
+              <label class="label">Residente</label>
+              <select
+                class="input"
+                formControlName="residenteId"
+                [class.input--invalid]="isInvalid(medForm, 'residenteId')"
+              >
+                <option [ngValue]="null">Seleccionar…</option>
+                <option *ngFor="let r of residentes" [ngValue]="r.id">
+                  {{ r.first_name }} {{ r.last_name }} · Hab. {{ r.room || '—' }}
+                </option>
+              </select>
+              <div class="error" *ngIf="isInvalid(medForm, 'residenteId')">
+                Seleccioná un residente.
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Medicamento</label>
+              <input
+                class="input"
+                placeholder="Ej: Paracetamol"
+                formControlName="medicamento"
+                [class.input--invalid]="isInvalid(medForm, 'medicamento')"
+              />
+              <div class="error" *ngIf="isInvalid(medForm, 'medicamento')">
+                Requerido.
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Dosis</label>
+              <input
+                class="input"
+                placeholder="Ej: 1g"
+                formControlName="dosis"
+                [class.input--invalid]="isInvalid(medForm, 'dosis')"
+              />
+              <div class="error" *ngIf="isInvalid(medForm, 'dosis')">
+                Requerido.
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Horario</label>
+              <input
+                class="input"
+                type="time"
+                formControlName="horario"
+                [class.input--invalid]="isInvalid(medForm, 'horario')"
+              />
+              <div class="error" *ngIf="isInvalid(medForm, 'horario')">
+                Requerido.
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Estado</label>
+              <select class="input" formControlName="estado">
+                <option value="pending">Pendiente</option>
+                <option value="administered">Administrada</option>
+                <option value="late">Atrasada</option>
+                <option value="suspended">Suspendida</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form__actions">
+            <button class="btn btn--primary" type="submit">
+              Registrar medicación
+            </button>
+          </div>
+        </form>
+
+        <!-- Últimas 6 -->
+        <div class="list">
+          <div class="list__head">
+            <div class="list__title">Últimas medicaciones</div>
+            <div class="list__hint">Se muestran hasta 6</div>
+          </div>
+
+          <div class="list__items">
+            <div
+              class="list-item js-anim-row"
+              *ngFor="let m of lastMeds; let i = index"
+              [class.js-row-new]="i === 0"
+            >
+              <div class="list-item__main">
+                <div class="list-item__top">
+                  <div class="name">
+                    {{ residenteLabel(m.resident_id) }}
+                  </div>
+                  <div class="time">
+                    {{ m.scheduled_at | date:'HH:mm' }}
+                  </div>
+                </div>
+
+                <div class="meta meta--row">
+                  <span class="pill">{{ m.drug_name }}</span>
+                  <span class="pill" *ngIf="m.dose">Dosis: {{ m.dose }}</span>
+
+                  <span [class]="medStatusClass(m.status)">
+                    {{ medStatusLabel(m.status) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="empty" *ngIf="!lastMeds.length">
+              Sin medicaciones registradas.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- OBSERVACIONES -->
+      <article class="card js-anim-card">
+        <div class="card__head">
+          <div>
+            <h2 class="card__title">Observaciones</h2>
+            <p class="card__subtitle">Normal / Alerta. Queda trazado.</p>
+          </div>
+        </div>
+
+        <form class="form" [formGroup]="obsForm" (ngSubmit)="guardarObservacion()">
+          <div class="form__grid form__grid--compact">
+            <div class="field field--full">
+              <label class="label">Residente</label>
+              <select
+                class="input"
+                formControlName="residenteId"
+                [class.input--invalid]="isInvalid(obsForm, 'residenteId')"
+              >
+                <option [ngValue]="null">Seleccionar…</option>
+                <option *ngFor="let r of residentes" [ngValue]="r.id">
+                  {{ r.first_name }} {{ r.last_name }} · Hab. {{ r.room || '—' }}
+                </option>
+              </select>
+              <div class="error" *ngIf="isInvalid(obsForm, 'residenteId')">
+                Seleccioná un residente.
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Tipo</label>
+              <select class="input" formControlName="tipo">
+                <option value="normal">Normal</option>
+                <option value="alerta">Alerta</option>
+              </select>
+            </div>
+
+            <div class="field field--full">
+              <label class="label">Texto</label>
+              <textarea
+                class="input input--textarea"
+                rows="3"
+                placeholder="Escribí una observación breve…"
+                formControlName="texto"
+                [class.input--invalid]="isInvalid(obsForm, 'texto')"
+              ></textarea>
+              <div class="error" *ngIf="isInvalid(obsForm, 'texto')">
+                Escribí al menos 4 caracteres.
+              </div>
+            </div>
+          </div>
+
+          <div class="form__actions">
+            <button class="btn btn--primary" type="submit">
+              Guardar observación
+            </button>
+          </div>
+        </form>
+
+        <!-- Últimas 6 -->
+        <div class="list">
+          <div class="list__head">
+            <div class="list__title">Últimas observaciones</div>
+            <div class="list__hint">Se muestran hasta 6</div>
+          </div>
+
+          <div class="list__items">
+            <div
+              class="list-item js-anim-row"
+              *ngFor="let o of lastObs; let i = index"
+              [class.js-row-new]="i === 0"
+            >
+              <div class="list-item__main">
+                <div class="list-item__top">
+                  <div class="name">
+                    {{ residenteLabel(o.resident_id) }}
+                  </div>
+                  <div class="time">
+                    {{ o.observed_at | date:'HH:mm' }}
+                  </div>
+                </div>
+
+                <div class="meta meta--row">
+                  <span [class]="obsTypeClass(o.type)">
+                    {{ obsTypeLabel(o.type) }}
+                  </span>
+                </div>
+
+                <div class="note">
+                  {{ o.text }}
+                </div>
+              </div>
+            </div>
+
+            <div class="empty" *ngIf="!lastObs.length">
+              Sin observaciones todavía.
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,624 @@
+<!-- residente-detalle.page.html -->
+<section
+  #pdfRoot
+  class="page page-enter"
+  [class.is-export]="exportMode"
+>
+
+  <header class="head">
+    <div class="left">
+      <a class="back" routerLink="/residentes">← Volver</a>
+
+      <h2>{{ residente.nombre }}</h2>
+
+      <div class="meta">
+        ID: {{ residente.id }} · Hab. {{ residente.habitacion }}
+      </div>
+
+      <!-- ✅ RESUMEN -->
+      <div class="summary">
+        <div class="kpis">
+          <div class="kpi kpi--lime">
+            <span>Medicaciones pendientes</span>
+            <b>{{ resumen.medsPend }}</b>
+          </div>
+
+          <div class="kpi kpi--blue">
+            <span>Administradas</span>
+            <b>{{ resumen.medsAdmin }}</b>
+          </div>
+
+          <div class="kpi kpi--red">
+            <span>Alertas activas</span>
+            <b>{{ resumen.obsAlert }}</b>
+          </div>
+        </div>
+
+        <div class="infoGrid">
+          <div class="info" *ngIf="residente.notas">
+            <span>Nota</span>
+            <b>{{ residente.notas }}</b>
+          </div>
+
+          <div class="info" *ngIf="residente.contactoNombre || residente.contactoTel">
+            <span>Contacto</span>
+            <b>{{ residente.contactoNombre || '—' }}</b>
+            <div class="mono" *ngIf="residente.contactoTel">{{ residente.contactoTel }}</div>
+          </div>
+
+          <div class="info" *ngIf="resumen.lastSigno as ls">
+            <span>Últimos signos</span>
+
+            <div class="signosLine">
+              <b>{{ ls.temp }}</b><small>°C</small>
+              <span class="dot">•</span>
+              <b>{{ ls.presion }}</b>
+              <span class="dot">•</span>
+              <b>{{ ls.pulso }}</b>
+            </div>
+
+            <div class="signosMeta">
+              <span class="mono">{{ ls.fecha | date:'dd/MM HH:mm' }}</span>
+              <span class="sep">·</span>
+              <span>{{ ls.by }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <span class="badge" [attr.data-state]="residente.estado">
+        {{ estadoLabel(residente.estado) }}
+      </span>
+
+      <a class="btn" routerLink="/historial" *ngIf="!exportMode">Ver historial global</a>
+
+      <!-- ✅ BOTÓN PDF -->
+      <button
+        type="button"
+        class="btn btn--primary"
+        (click)="exportarPdf()"
+        [disabled]="pdfLoading"
+        *ngIf="!exportMode"
+      >
+        {{ pdfLoading ? 'Generando PDF…' : 'Exportar PDF' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================
+       MODO NORMAL (APP)
+       - Tabs + formularios
+  =========================== -->
+  <ng-container *ngIf="!exportMode">
+
+    <nav class="tabs" aria-label="Secciones del residente">
+      <button type="button" class="tab" [class.is-active]="tab==='signos'" (click)="setTab('signos')">Signos</button>
+      <button type="button" class="tab" [class.is-active]="tab==='medicacion'" (click)="setTab('medicacion')">Medicación</button>
+      <button type="button" class="tab" [class.is-active]="tab==='observaciones'" (click)="setTab('observaciones')">Observaciones</button>
+      <button type="button" class="tab" [class.is-active]="tab==='historial'" (click)="setTab('historial')">Historial</button>
+    </nav>
+
+    <!-- TAB: SIGNOS (APP) -->
+    <section class="card" *ngIf="tab==='signos'">
+      <div class="cardTop">
+        <h3>Registrar signos vitales</h3>
+        <span class="hint">Se guarda en timeline + auditoría (mock).</span>
+      </div>
+
+      <div class="form">
+        <label class="field">
+          <span>Temperatura (°C)</span>
+          <input [(ngModel)]="temp" placeholder="Ej: 36.7" inputmode="decimal" />
+        </label>
+
+        <label class="field">
+          <span>Presión</span>
+          <input [(ngModel)]="presion" placeholder="Ej: 120/80" />
+        </label>
+
+        <label class="field">
+          <span>Pulso</span>
+          <input [(ngModel)]="pulso" placeholder="Ej: 78" inputmode="numeric" />
+        </label>
+      </div>
+
+      <button type="button" class="btn btn--primary" (click)="guardarSignos()">Guardar</button>
+
+      <div class="tableWrap" *ngIf="residente.signos.length > 0">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Temp</th>
+              <th>Presión</th>
+              <th>Pulso</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let s of residente.signos; trackBy: trackById">
+              <td class="mono">{{ s.fecha | date:'dd/MM HH:mm' }}</td>
+              <td>{{ s.temp }}</td>
+              <td>{{ s.presion }}</td>
+              <td>{{ s.pulso }}</td>
+              <td>{{ s.by }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="placeholder small" *ngIf="residente.signos.length === 0">
+        Sin signos cargados todavía.
+      </div>
+    </section>
+
+    <!-- TAB: MEDICACIÓN (APP) -->
+    <section class="card" *ngIf="tab==='medicacion'">
+      <div class="cardTop">
+        <h3>Tratamientos y medicación</h3>
+        <p class="muted">Tabla editable + estados con destaque visual + auditoría por usuario.</p>
+      </div>
+
+      <div class="form form--inline">
+        <label class="field">
+          <span>Medicamento</span>
+          <input [(ngModel)]="newMedNombre" placeholder="Ej: Enalapril" />
+        </label>
+
+        <label class="field">
+          <span>Dosis</span>
+          <input [(ngModel)]="newMedDosis" placeholder="Ej: 10mg" />
+        </label>
+
+        <label class="field">
+          <span>Horario</span>
+          <input type="time" [(ngModel)]="newMedHora" />
+        </label>
+
+        <button type="button" class="btn btn--primary" (click)="addMedMock()">+ Agregar</button>
+      </div>
+
+      <div class="tableWrap" *ngIf="residente.medicacion.length > 0; else medEmpty">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Medicamento</th>
+              <th>Dosis</th>
+              <th>Hora</th>
+              <th>Estado</th>
+              <th>Actualización</th>
+              <th class="right">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let m of residente.medicacion; trackBy: trackById" [attr.data-med]="m.estado">
+              <ng-container *ngIf="editingMedId === m.id; else medRead">
+                <td><input [(ngModel)]="$any(medDraft).medicamento" /></td>
+                <td><input [(ngModel)]="$any(medDraft).dosis" /></td>
+                <td><input type="time" [(ngModel)]="$any(medDraft).horario" /></td>
+
+                <td>
+                  <select [(ngModel)]="$any(medDraft).estado">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="administrada">Administrada</option>
+                    <option value="atrasada">Atrasada</option>
+                    <option value="suspendida">Suspendida</option>
+                  </select>
+                </td>
+
+                <td class="muted">Se guardará como: <b>{{ currentUser }}</b></td>
+
+                <td class="right">
+                  <button type="button" class="btn btn--tiny" (click)="saveMedEdit()">Guardar</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="cancelMedEdit()">Cancelar</button>
+                </td>
+              </ng-container>
+
+              <ng-template #medRead>
+                <td class="strong">{{ m.medicamento }}</td>
+                <td>{{ m.dosis }}</td>
+                <td class="mono">{{ m.horario }}</td>
+
+                <td>
+                  <span class="pill" [attr.data-med]="m.estado">{{ medEstadoLabel(m.estado) }}</span>
+                </td>
+
+                <td class="muted">
+                  <div *ngIf="m.updatedAt; else medNoUpd">
+                    <div class="mono">{{ m.updatedAt | date:'dd/MM HH:mm' }}</div>
+                    <div>{{ m.updatedBy }}</div>
+                  </div>
+                  <ng-template #medNoUpd>—</ng-template>
+                </td>
+
+                <td class="right">
+                  <button type="button" class="btn btn--tiny" (click)="startMedEdit(m)">Editar</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'administrada')">OK</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'atrasada')">Atrasada</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'suspendida')">Susp.</button>
+                </td>
+              </ng-template>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #medEmpty>
+        <div class="placeholder">No hay medicación cargada.</div>
+      </ng-template>
+    </section>
+
+    <!-- TAB: OBSERVACIONES (APP) -->
+    <section class="card" *ngIf="tab==='observaciones'">
+      <div class="cardTop">
+        <h3>Observaciones de enfermería</h3>
+        <p class="muted">Tabla editable + alertas destacadas + auditoría por usuario.</p>
+      </div>
+
+      <div class="form form--inline">
+        <label class="field">
+          <span>Tipo</span>
+          <select [(ngModel)]="newObsTipo">
+            <option value="normal">Normal</option>
+            <option value="alerta">Alerta</option>
+          </select>
+        </label>
+
+        <label class="field field--grow">
+          <span>Texto</span>
+          <input [(ngModel)]="newObsText" placeholder="Escribí la observación…" />
+        </label>
+
+        <button type="button" class="btn btn--primary" (click)="addObsMock()">Guardar</button>
+      </div>
+
+      <div class="tableWrap" *ngIf="residente.observaciones.length > 0; else obsEmpty">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Texto</th>
+              <th>Actualización</th>
+              <th class="right">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let o of residente.observaciones; trackBy: trackById" [attr.data-obs]="o.tipo">
+              <ng-container *ngIf="editingObsId === o.id; else obsRead">
+                <td class="mono">{{ o.fecha | date:'dd/MM HH:mm' }}</td>
+
+                <td>
+                  <select [(ngModel)]="$any(obsDraft).tipo">
+                    <option value="normal">Normal</option>
+                    <option value="alerta">Alerta</option>
+                  </select>
+                </td>
+
+                <td><input [(ngModel)]="$any(obsDraft).texto" /></td>
+                <td class="muted">Se guardará como: <b>{{ currentUser }}</b></td>
+
+                <td class="right">
+                  <button type="button" class="btn btn--tiny" (click)="saveObsEdit()">Guardar</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="cancelObsEdit()">Cancelar</button>
+                </td>
+              </ng-container>
+
+              <ng-template #obsRead>
+                <td class="mono">{{ o.fecha | date:'dd/MM HH:mm' }}</td>
+                <td>
+                  <span class="pill" [attr.data-obs]="o.tipo">{{ obsTipoLabel(o.tipo) }}</span>
+                </td>
+                <td class="strong">{{ o.texto }}</td>
+
+                <td class="muted">
+                  <div *ngIf="o.updatedAt; else obsNoUpd">
+                    <div class="mono">{{ o.updatedAt | date:'dd/MM HH:mm' }}</div>
+                    <div>{{ o.updatedBy }}</div>
+                  </div>
+                  <ng-template #obsNoUpd>—</ng-template>
+                </td>
+
+                <td class="right">
+                  <button type="button" class="btn btn--tiny" (click)="startObsEdit(o)">Editar</button>
+                </td>
+              </ng-template>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #obsEmpty>
+        <div class="placeholder small">No hay observaciones por ahora.</div>
+      </ng-template>
+    </section>
+
+    <!-- TAB: HISTORIAL (APP) -->
+    <section class="card" *ngIf="tab==='historial'">
+      <div class="cardTop">
+        <h3>Historial clínico automático</h3>
+        <p class="muted">Timeline (signos + medicación + observaciones) + auditoría.</p>
+      </div>
+
+      <div class="timeline" *ngIf="residente.historial.length > 0; else histEmpty">
+        <div class="tlItem" *ngFor="let h of residente.historial; trackBy: trackById">
+          <div class="tlDot"></div>
+
+          <div class="tlCard">
+            <div class="tlTop">
+              <div class="tlTitle">{{ h.titulo }}</div>
+              <div class="tlMeta mono">{{ h.fecha | date:'dd/MM HH:mm' }}</div>
+            </div>
+
+            <div class="tlDesc" *ngIf="h.detalle">{{ h.detalle }}</div>
+            <div class="tlBy">por <b>{{ h.by }}</b></div>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #histEmpty>
+        <div class="placeholder">Sin historial todavía.</div>
+      </ng-template>
+
+      <div class="divider"></div>
+
+      <h4 class="auditTitle">Auditoría</h4>
+
+      <div class="tableWrap" *ngIf="residente.auditoria.length > 0; else audEmpty">
+        <table class="table table--tight">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Acción</th>
+              <th>Módulo</th>
+              <th>Campo</th>
+              <th>Detalle</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let a of residente.auditoria; trackBy: trackById">
+              <td class="mono">{{ a.fecha | date:'dd/MM HH:mm' }}</td>
+              <td class="strong">{{ a.accion }}</td>
+              <td>{{ a.modulo }}</td>
+              <td class="muted">{{ a.campo || '—' }}</td>
+
+              <td class="muted">
+                <ng-container *ngIf="a.before || a.after; else noDiff">
+                  <details class="diff">
+                    <summary>Ver cambios</summary>
+                    <div class="diffGrid">
+                      <div>
+                        <div class="diffLabel">Antes</div>
+                        <pre class="diffBox">{{ a.before || '—' }}</pre>
+                      </div>
+                      <div>
+                        <div class="diffLabel">Después</div>
+                        <pre class="diffBox">{{ a.after || '—' }}</pre>
+                      </div>
+                    </div>
+                  </details>
+                </ng-container>
+                <ng-template #noDiff>—</ng-template>
+              </td>
+
+              <td>{{ a.by }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #audEmpty>
+        <div class="placeholder small">Todavía no hay auditoría.</div>
+      </ng-template>
+    </section>
+
+  </ng-container>
+
+  <!-- ==========================
+       MODO PDF (LECTURA)
+       - NO formularios
+       - muestra TODO en orden
+  =========================== -->
+  <ng-container *ngIf="exportMode">
+
+    <!-- SIGNOS (PDF) -->
+    <section class="card pdf-card">
+      <div class="cardTop">
+        <h3>Signos vitales</h3>
+        <span class="hint">Registros cargados</span>
+      </div>
+
+      <div class="tableWrap" *ngIf="residente.signos.length > 0; else pdfSignosEmpty">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Temp</th>
+              <th>Presión</th>
+              <th>Pulso</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of residente.signos; trackBy: trackById">
+              <td class="mono">{{ s.fecha | date:'dd/MM HH:mm' }}</td>
+              <td>{{ s.temp }}</td>
+              <td>{{ s.presion }}</td>
+              <td>{{ s.pulso }}</td>
+              <td>{{ s.by }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #pdfSignosEmpty>
+        <div class="placeholder small">Sin registros de signos.</div>
+      </ng-template>
+    </section>
+
+    <!-- MEDICACIÓN (PDF) -->
+    <section class="card pdf-card">
+      <div class="cardTop">
+        <h3>Tratamientos y medicación</h3>
+        <span class="hint">Registros cargados</span>
+      </div>
+
+      <div class="tableWrap" *ngIf="residente.medicacion.length > 0; else pdfMedEmpty">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Medicamento</th>
+              <th>Dosis</th>
+              <th>Hora</th>
+              <th>Estado</th>
+              <th>Actualización</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let m of residente.medicacion; trackBy: trackById" [attr.data-med]="m.estado">
+              <td class="strong">{{ m.medicamento }}</td>
+              <td>{{ m.dosis }}</td>
+              <td class="mono">{{ m.horario }}</td>
+              <td><span class="pill" [attr.data-med]="m.estado">{{ medEstadoLabel(m.estado) }}</span></td>
+              <td class="muted">
+                <div *ngIf="m.updatedAt; else pdfMedNoUpd">
+                  <div class="mono">{{ m.updatedAt | date:'dd/MM HH:mm' }}</div>
+                  <div>{{ m.updatedBy }}</div>
+                </div>
+                <ng-template #pdfMedNoUpd>—</ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #pdfMedEmpty>
+        <div class="placeholder small">Sin medicación registrada.</div>
+      </ng-template>
+    </section>
+
+    <!-- OBSERVACIONES (PDF) -->
+    <section class="card pdf-card">
+      <div class="cardTop">
+        <h3>Observaciones</h3>
+        <span class="hint">Registros cargados</span>
+      </div>
+
+      <div class="tableWrap" *ngIf="residente.observaciones.length > 0; else pdfObsEmpty">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Texto</th>
+              <th>Actualización</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let o of residente.observaciones; trackBy: trackById" [attr.data-obs]="o.tipo">
+              <td class="mono">{{ o.fecha | date:'dd/MM HH:mm' }}</td>
+              <td><span class="pill" [attr.data-obs]="o.tipo">{{ obsTipoLabel(o.tipo) }}</span></td>
+              <td class="strong">{{ o.texto }}</td>
+              <td class="muted">
+                <div *ngIf="o.updatedAt; else pdfObsNoUpd">
+                  <div class="mono">{{ o.updatedAt | date:'dd/MM HH:mm' }}</div>
+                  <div>{{ o.updatedBy }}</div>
+                </div>
+                <ng-template #pdfObsNoUpd>—</ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #pdfObsEmpty>
+        <div class="placeholder small">Sin observaciones registradas.</div>
+      </ng-template>
+    </section>
+
+    <!-- HISTORIAL (PDF) -->
+    <section class="card pdf-card">
+      <div class="cardTop">
+        <h3>Historial clínico automático</h3>
+        <span class="hint">Timeline</span>
+      </div>
+
+      <div class="timeline" *ngIf="residente.historial.length > 0; else pdfHistEmpty">
+        <div class="tlItem" *ngFor="let h of residente.historial; trackBy: trackById">
+          <div class="tlDot"></div>
+
+          <div class="tlCard">
+            <div class="tlTop">
+              <div class="tlTitle">{{ h.titulo }}</div>
+              <div class="tlMeta mono">{{ h.fecha | date:'dd/MM HH:mm' }}</div>
+            </div>
+
+            <div class="tlDesc" *ngIf="h.detalle">{{ h.detalle }}</div>
+            <div class="tlBy">por <b>{{ h.by }}</b></div>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #pdfHistEmpty>
+        <div class="placeholder small">Sin historial registrado.</div>
+      </ng-template>
+
+      <div class="divider"></div>
+
+      <h4 class="auditTitle">Auditoría</h4>
+
+      <div class="tableWrap" *ngIf="residente.auditoria.length > 0; else pdfAudEmpty">
+        <table class="table table--tight">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Acción</th>
+              <th>Módulo</th>
+              <th>Campo</th>
+              <th>Detalle</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let a of residente.auditoria; trackBy: trackById">
+              <td class="mono">{{ a.fecha | date:'dd/MM HH:mm' }}</td>
+              <td class="strong">{{ a.accion }}</td>
+              <td>{{ a.modulo }}</td>
+              <td class="muted">{{ a.campo || '—' }}</td>
+              <td class="muted">
+                <ng-container *ngIf="a.before || a.after; else pdfNoDiff">
+                  <div class="diffGrid">
+                    <div>
+                      <div class="diffLabel">Antes</div>
+                      <pre class="diffBox">{{ a.before || '—' }}</pre>
+                    </div>
+                    <div>
+                      <div class="diffLabel">Después</div>
+                      <pre class="diffBox">{{ a.after || '—' }}</pre>
+                    </div>
+                  </div>
+                </ng-container>
+                <ng-template #pdfNoDiff>—</ng-template>
+              </td>
+              <td>{{ a.by }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #pdfAudEmpty>
+        <div class="placeholder small">Sin auditoría.</div>
+      </ng-template>
+    </section>
+
+  </ng-container>
+
+</section>
