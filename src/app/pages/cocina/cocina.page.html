@@ -1,0 +1,57 @@
+<section class="page">
+  <header class="head">
+    <div>
+      <div class="eyebrow">Cocina</div>
+      <h1>Cocina y menú diario</h1>
+      <p>Planificá el servicio de comidas sin inventar datos. Ajustá menús y entregas según las notas reales que ya maneja el equipo.</p>
+    </div>
+
+    <div class="head__pills">
+      <span class="pill">Servicio</span>
+      <span class="pill">Dietas</span>
+      <span class="pill">Entregas</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Organización</div>
+        <h2>Secciones clave</h2>
+      </div>
+      <span class="tag">Sin datos en vivo</span>
+    </div>
+
+    <div class="cards">
+      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
+        <div class="card__eyebrow">{{ s.title }}</div>
+        <p class="card__desc">{{ s.desc }}</p>
+        <ul>
+          <li *ngFor="let b of s.bullets">{{ b }}</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Seguimiento</div>
+        <h2>Estado actual</h2>
+      </div>
+      <span class="tag tag--muted">Limpiamos los 404 (sin llamados extra)</span>
+    </div>
+
+    <div class="highlights">
+      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
+        <div class="highlight__label">{{ h.label }}</div>
+        <div class="highlight__detail">{{ h.detail }}</div>
+      </div>
+    </div>
+
+    <div class="empty">
+      <div class="empty__title">Sin pedidos en curso</div>
+      <div class="empty__text">Cuando lleguen requerimientos reales se listarán acá. Mientras tanto podés preparar el menú y las rutas internas.</div>
+    </div>
+  </section>
+</section>

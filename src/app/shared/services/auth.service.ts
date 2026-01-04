@@ -4,7 +4,13 @@ import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { API_CONFIG } from '../../core/config/api.config';
 
-export type AuthRole = 'admin' | 'enfermeria' | 'medico';
+export type AuthRole =
+  | 'admin'
+  | 'enfermeria'
+  | 'medico'
+  | 'cocinero'
+  | 'fisio'
+  | 'entrenador_fisico';
 
 export type AuthUser = {
   id: number;

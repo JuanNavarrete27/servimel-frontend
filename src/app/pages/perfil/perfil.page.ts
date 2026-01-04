@@ -64,7 +64,7 @@ import { API_CONFIG } from '../../core/config/api.config';
 // =========================
 // DB-ALIGNED TYPES
 // =========================
-type Role = 'enfermeria' | 'medico' | 'admin';
+type Role = 'enfermeria' | 'medico' | 'admin' | 'cocinero' | 'fisio' | 'entrenador_fisico';
 type UserStatus = 'activo' | 'guardia' | 'fuera';
 
 type ToastType = 'ok' | 'warn' | 'error';
@@ -479,7 +479,12 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         typeof me.is_active === 'boolean' ? me.is_active : Number(me.is_active) === 1;
 
       const safeRole: Role =
-        (me.role === 'admin' || me.role === 'medico' || me.role === 'enfermeria')
+        (me.role === 'admin'
+          || me.role === 'medico'
+          || me.role === 'enfermeria'
+          || me.role === 'cocinero'
+          || me.role === 'fisio'
+          || me.role === 'entrenador_fisico')
           ? me.role
           : this.profile.role;
 
@@ -825,6 +830,9 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
       case 'admin': return 'Admin';
       case 'medico': return 'Médico';
       case 'enfermeria': return 'Enfermería';
+      case 'cocinero': return 'Cocinero';
+      case 'fisio': return 'Fisioterapia';
+      case 'entrenador_fisico': return 'Entrenador físico';
       default: return 'Usuario';
     }
   }
@@ -911,7 +919,12 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         typeof me.is_active === 'boolean' ? me.is_active : Number(me.is_active) === 1;
 
       const safeRole: Role =
-        (me.role === 'admin' || me.role === 'medico' || me.role === 'enfermeria')
+        (me.role === 'admin'
+          || me.role === 'medico'
+          || me.role === 'enfermeria'
+          || me.role === 'cocinero'
+          || me.role === 'fisio'
+          || me.role === 'entrenador_fisico')
           ? me.role
           : this.profile.role;
 

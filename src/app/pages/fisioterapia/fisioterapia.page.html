@@ -1,0 +1,57 @@
+<section class="page">
+  <header class="head">
+    <div>
+      <div class="eyebrow">Salud</div>
+      <h1>Fisioterapia</h1>
+      <p>Gestioná sesiones y notas clínicas siguiendo el mismo estilo visual del resto de Servimel. No se agregan endpoints nuevos: todo el contenido es guía limpia.</p>
+    </div>
+
+    <div class="head__pills">
+      <span class="pill">Turnos</span>
+      <span class="pill">Protocolos</span>
+      <span class="pill">Seguimiento</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Organización</div>
+        <h2>Secciones clave</h2>
+      </div>
+      <span class="tag">Sin datos en vivo</span>
+    </div>
+
+    <div class="cards">
+      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
+        <div class="card__eyebrow">{{ s.title }}</div>
+        <p class="card__desc">{{ s.desc }}</p>
+        <ul>
+          <li *ngFor="let b of s.bullets">{{ b }}</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Seguimiento</div>
+        <h2>Estado actual</h2>
+      </div>
+      <span class="tag tag--muted">Esperando registros reales</span>
+    </div>
+
+    <div class="highlights">
+      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
+        <div class="highlight__label">{{ h.label }}</div>
+        <div class="highlight__detail">{{ h.detail }}</div>
+      </div>
+    </div>
+
+    <div class="empty">
+      <div class="empty__title">Sin turnos cargados</div>
+      <div class="empty__text">Cuando el backend tenga datos, se listarán acá con el mismo layout. Por ahora es una guía limpia para evitar errores en consola.</div>
+    </div>
+  </section>
+</section>

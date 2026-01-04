@@ -1,6 +1,13 @@
 // src/app/shared/models/auth.model.ts
 
-export type UserRole = 'admin' | 'enfermeria' | 'medico' | 'staff';
+export type UserRole =
+  | 'admin'
+  | 'enfermeria'
+  | 'medico'
+  | 'staff'
+  | 'cocinero'
+  | 'fisio'
+  | 'entrenador_fisico';
 
 // =========================
 // UI MODEL (lo que usa tu frontend)

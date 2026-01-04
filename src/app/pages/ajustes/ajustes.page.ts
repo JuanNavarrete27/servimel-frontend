@@ -46,7 +46,7 @@ import { firstValueFrom, Subscription } from 'rxjs';
 import { API_CONFIG } from '../../core/config/api.config';
 import { UiPrefsService } from '../../shared/services/ui-prefs.service';
 
-type Role = 'admin' | 'enfermeria' | 'medico' | 'recepcion';
+type Role = 'admin' | 'enfermeria' | 'medico' | 'recepcion' | 'cocinero' | 'fisio' | 'entrenador_fisico';
 
 type ToastType = 'ok' | 'warn' | 'error';
 type Toast = { id: number; type: ToastType; title: string; msg?: string };
@@ -151,6 +151,9 @@ export class AjustesPage implements OnInit, AfterViewInit, OnDestroy {
       case 'admin': return 'Administrador';
       case 'enfermeria': return 'Enfermería';
       case 'medico': return 'Médico';
+      case 'cocinero': return 'Cocinero';
+      case 'fisio': return 'Fisioterapia';
+      case 'entrenador_fisico': return 'Entrenador físico';
       case 'recepcion': return 'Recepción';
     }
   }

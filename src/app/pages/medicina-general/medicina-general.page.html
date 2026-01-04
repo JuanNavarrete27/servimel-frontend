@@ -1,0 +1,57 @@
+<section class="page">
+  <header class="head">
+    <div>
+      <div class="eyebrow">Salud</div>
+      <h1>Medicina general</h1>
+      <p>Registra consultas, indicaciones y comunicación con el equipo sin inventar endpoints. La página sigue el layout de Servimel para evitar rupturas.</p>
+    </div>
+
+    <div class="head__pills">
+      <span class="pill">Consultas</span>
+      <span class="pill">Indicaciones</span>
+      <span class="pill">Familia</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Organización</div>
+        <h2>Secciones clave</h2>
+      </div>
+      <span class="tag">Sin datos en vivo</span>
+    </div>
+
+    <div class="cards">
+      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
+        <div class="card__eyebrow">{{ s.title }}</div>
+        <p class="card__desc">{{ s.desc }}</p>
+        <ul>
+          <li *ngFor="let b of s.bullets">{{ b }}</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Seguimiento</div>
+        <h2>Estado actual</h2>
+      </div>
+      <span class="tag tag--muted">Compatible con SSR</span>
+    </div>
+
+    <div class="highlights">
+      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
+        <div class="highlight__label">{{ h.label }}</div>
+        <div class="highlight__detail">{{ h.detail }}</div>
+      </div>
+    </div>
+
+    <div class="empty">
+      <div class="empty__title">Sin consultas registradas</div>
+      <div class="empty__text">Cuando haya datos reales aparecerán acá. Mientras tanto tenés un marco visual coherente con el resto del sistema.</div>
+    </div>
+  </section>
+</section>

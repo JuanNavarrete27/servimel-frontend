@@ -1,0 +1,57 @@
+<section class="page">
+  <header class="head">
+    <div>
+      <div class="eyebrow">Actividad</div>
+      <h1>Yoga</h1>
+      <p>Sesiones de movilidad y respiración para residentes. Mantiene el layout actual y no genera peticiones adicionales.</p>
+    </div>
+
+    <div class="head__pills">
+      <span class="pill">Respiración</span>
+      <span class="pill">Movilidad</span>
+      <span class="pill">Relajación</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Organización</div>
+        <h2>Secciones clave</h2>
+      </div>
+      <span class="tag">Sin datos en vivo</span>
+    </div>
+
+    <div class="cards">
+      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
+        <div class="card__eyebrow">{{ s.title }}</div>
+        <p class="card__desc">{{ s.desc }}</p>
+        <ul>
+          <li *ngFor="let b of s.bullets">{{ b }}</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Seguimiento</div>
+        <h2>Estado actual</h2>
+      </div>
+      <span class="tag tag--muted">Preparado para datos reales</span>
+    </div>
+
+    <div class="highlights">
+      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
+        <div class="highlight__label">{{ h.label }}</div>
+        <div class="highlight__detail">{{ h.detail }}</div>
+      </div>
+    </div>
+
+    <div class="empty">
+      <div class="empty__title">Sin sesiones programadas</div>
+      <div class="empty__text">Agregá sesiones reales cuando estén disponibles. La página mantiene el diseño y no muestra datos ficticios.</div>
+    </div>
+  </section>
+</section>

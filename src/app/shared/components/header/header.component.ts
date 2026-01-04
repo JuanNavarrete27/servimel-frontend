@@ -46,7 +46,12 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'Residentes', path: '/residentes' },
     { label: 'Enfermería', path: '/enfermeria' },
+    { label: 'Medicina General', path: '/medicina-general' },
+    { label: 'Fisioterapia', path: '/fisioterapia' },
     { label: 'Historial', path: '/historial' },
+    { label: 'Ed. Física', path: '/ed-fisica' },
+    { label: 'Yoga', path: '/yoga' },
+    { label: 'Cocina', path: '/cocina' },
     { label: 'Ajustes', path: '/ajustes' },
   ];
 

@@ -87,6 +87,31 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/enfermeria/enfermeria.page').then(m => m.EnfermeriaPage),
       },
+      {
+        path: 'medicina-general',
+        loadComponent: () =>
+          import('./pages/medicina-general/medicina-general.page').then(m => m.MedicinaGeneralPage),
+      },
+      {
+        path: 'fisioterapia',
+        loadComponent: () =>
+          import('./pages/fisioterapia/fisioterapia.page').then(m => m.FisioterapiaPage),
+      },
+      {
+        path: 'ed-fisica',
+        loadComponent: () =>
+          import('./pages/ed-fisica/ed-fisica.page').then(m => m.EdFisicaPage),
+      },
+      {
+        path: 'yoga',
+        loadComponent: () =>
+          import('./pages/yoga/yoga.page').then(m => m.YogaPage),
+      },
+      {
+        path: 'cocina',
+        loadComponent: () =>
+          import('./pages/cocina/cocina.page').then(m => m.CocinaPage),
+      },
 
       {
         path: 'historial',
