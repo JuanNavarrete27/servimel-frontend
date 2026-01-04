@@ -1,7 +1,7 @@
 <header #headerEl class="header" [class.header--scrolled]="isScrolled">
   <div class="header__inner">
     <!-- BRAND -->
-    <a class="brand" routerLink="/dashboard" (click)="closeMenu()">
+    <a class="brand" routerLink="/dashboard" (click)="closeMenu(); closeServices()">
       <span class="brand__logo">
         <img
           class="brand__mark"
@@ -24,18 +24,44 @@
       </span>
     </a>
 
-    <!-- NAV DESKTOP -->
+    <!-- NAV DESKTOP: SOLO "SERVICIOS" -->
     <nav class="nav nav--desktop" aria-label="Navegación principal">
-      <a
-        class="nav__link"
-        *ngFor="let item of nav; let i = index"
-        [style.--i]="i"
-        [routerLink]="item.path"
-        routerLinkActive="is-active"
-        [routerLinkActiveOptions]="{ exact: true }"
+      <div
+        #servicesWrap
+        class="services"
+        (mouseenter)="openServices()"
+        (mouseleave)="closeServices()"
       >
-        {{ item.label }}
-      </a>
+        <button
+          class="services__btn btn--profile"
+          type="button"
+          (click)="toggleServices()"
+          [class.is-open]="isServicesOpen"
+          [class.is-active]="isServicesActive"
+          [attr.aria-expanded]="isServicesOpen"
+          aria-haspopup="menu"
+          aria-controls="servicesMenu"
+        >
+          Servicios
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+
+        <div #servicesMenu id="servicesMenu" class="services__menu" role="menu">
+          <a
+            class="services__item"
+            role="menuitem"
+            *ngFor="let item of nav; let i = index"
+            [style.--i]="i"
+            [routerLink]="item.path"
+            routerLinkActive="is-active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            (click)="closeServices()"
+          >
+            <span class="m-dot" aria-hidden="true"></span>
+            {{ item.label }}
+          </a>
+        </div>
+      </div>
     </nav>
 
     <!-- ACTIONS -->
@@ -58,7 +84,7 @@
     </div>
   </div>
 
-  <!-- MOBILE MENU -->
+  <!-- MOBILE MENU (muestra TODO) -->
   <div #mobileEl class="mobile" [class.mobile--open]="isMenuOpen">
     <nav class="nav nav--mobile" aria-label="Menú móvil">
       <a
