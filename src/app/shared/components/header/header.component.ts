@@ -9,12 +9,14 @@ import {
   PLATFORM_ID
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { gsap } from 'gsap';
 
 // ✅ FIX: estabas “dentro” de /shared/components/header,
 // y el service está en /shared/services => sube 2 y entra a services
 import { AuthService } from '../../services/auth.service';
+
+import { Subscription, filter } from 'rxjs';
 
 type NavItem = { label: string; path: string };
 
@@ -30,6 +32,10 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mobileEl', { static: true }) mobileEl!: ElementRef<HTMLElement>;
   @ViewChild('burgerEl', { static: true }) burgerEl!: ElementRef<HTMLButtonElement>;
 
+  // ✅ Desktop dropdown (Servicios)
+  @ViewChild('servicesWrap', { static: true }) servicesWrap!: ElementRef<HTMLElement>;
+  @ViewChild('servicesMenu', { static: true }) servicesMenu!: ElementRef<HTMLElement>;
+
   // ✅ Logout modal
   @ViewChild('logoutBackdrop', { static: false }) logoutBackdrop?: ElementRef<HTMLElement>;
   @ViewChild('logoutModal', { static: false }) logoutModal?: ElementRef<HTMLElement>;
@@ -39,6 +45,10 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
   isScrolled = false;
   isMenuOpen = false;
+
+  // ✅ Servicios state
+  isServicesOpen = false;
+  isServicesActive = false;
 
   logoPath = '/images/logo.png';
 
@@ -69,7 +79,13 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   private tlMenu?: gsap.core.Timeline;
   private reduceMotion = false;
 
+  // ✅ GSAP desktop dropdown
+  private tlServices?: gsap.core.Timeline;
+
   private isBrowser = false;
+
+  // Router tracking
+  private routerSub?: Subscription;
 
   constructor(
     private router: Router,
@@ -106,8 +122,21 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     // Init scroll state
     this.onScroll();
 
-    // GSAP menu init
+    // ✅ Router: marcar Servicios activo si estás en cualquier ruta del dropdown
+    this.isServicesActive = this.computeServicesActive(this.router.url);
+    this.routerSub = this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+      .subscribe((e) => {
+        const url = (e.urlAfterRedirects || e.url) ?? '';
+        this.isServicesActive = this.computeServicesActive(url);
+        // al navegar, cerramos dropdown
+        this.isServicesOpen = false;
+        this.animateServices(false);
+      });
+
+    // GSAP init
     this.setupMenuTimeline();
+    this.setupServicesTimeline();
   }
 
   ngOnDestroy(): void {
@@ -121,14 +150,28 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     this.tlMenu?.kill();
     this.tlMenu = undefined;
 
+    this.tlServices?.kill();
+    this.tlServices = undefined;
+
     this.logoutTl?.kill();
+    this.routerSub?.unsubscribe();
   }
 
+  // =========================
+  // ✅ SERVICES ACTIVE HELP
+  // =========================
+  private computeServicesActive(url: string): boolean {
+    const clean = (url || '').split('?')[0].split('#')[0];
+    return this.nav.some((n) => clean === n.path || clean.startsWith(n.path + '/'));
+  }
+
+  // =========================
+  // ✅ MOBILE MENU GSAP
+  // =========================
   private setupMenuTimeline() {
     const mobile = this.mobileEl?.nativeElement;
     if (!mobile) return;
 
-    // Estado base (cerrado)
     gsap.set(mobile, {
       height: 0,
       opacity: 0,
@@ -143,6 +186,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
     this.tlMenu = gsap
       .timeline({ paused: true })
+      .set(mobile, { pointerEvents: 'auto' }, 0) // ✅ FIX: habilitar click ya
       .to(mobile, {
         height: 'auto',
         duration: 0.38,
@@ -159,7 +203,6 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
         },
         0
       )
-      .set(mobile, { pointerEvents: 'auto' }, 0.05)
       .fromTo(
         links,
         { opacity: 0, y: -8 },
@@ -171,6 +214,59 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
           stagger: 0.045,
         },
         0.08
+      );
+  }
+
+  // =========================
+  // ✅ DESKTOP DROPDOWN GSAP
+  // =========================
+  private setupServicesTimeline() {
+    const menu = this.servicesMenu?.nativeElement;
+    if (!menu) return;
+
+    // base cerrado
+    gsap.set(menu, {
+      opacity: 0,
+      y: -6,
+      filter: 'blur(10px)',
+      pointerEvents: 'none',
+      height: 0,
+    });
+
+    if (this.reduceMotion) return;
+
+    const items = Array.from(menu.querySelectorAll('.services__item')) as HTMLElement[];
+
+    this.tlServices = gsap
+      .timeline({ paused: true })
+      .set(menu, { pointerEvents: 'auto' }, 0) // ✅ FIX: habilitar click ya (si no, se cierra al intentar seleccionar)
+      .to(menu, {
+        height: 'auto',
+        duration: 0.30,
+        ease: 'power3.out',
+      })
+      .to(
+        menu,
+        {
+          opacity: 1,
+          y: 0,
+          filter: 'blur(0px)',
+          duration: 0.22,
+          ease: 'power2.out',
+        },
+        0
+      )
+      .fromTo(
+        items,
+        { opacity: 0, y: -8 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.22,
+          ease: 'power2.out',
+          stagger: 0.035,
+        },
+        0.06
       );
   }
 
@@ -212,8 +308,100 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     });
   }
 
+  // ✅ close dropdown on outside click
+  @HostListener('document:click', ['$event'])
+  onDocClick(ev: MouseEvent) {
+    if (!this.isBrowser) return;
+    if (!this.isServicesOpen) return;
+
+    const wrap = this.servicesWrap?.nativeElement;
+    const target = ev.target as Node | null;
+    if (wrap && target && !wrap.contains(target)) {
+      this.closeServices();
+    }
+  }
+
+  // ✅ close dropdown + mobile on Escape
+  @HostListener('document:keydown', ['$event'])
+  onDocKeydown(ev: KeyboardEvent) {
+    if (!this.isBrowser) return;
+
+    if (ev.key === 'Escape') {
+      if (this.isServicesOpen) this.closeServices();
+      if (this.isMenuOpen) this.closeMenu();
+    }
+  }
+
+  // =========================
+  // ✅ SERVICES CONTROL
+  // =========================
+  toggleServices() {
+    this.isServicesOpen = !this.isServicesOpen;
+
+    // no mezclar con mobile abierto
+    if (this.isServicesOpen) this.isMenuOpen = false;
+
+    this.animateServices(this.isServicesOpen);
+    this.applyHeaderHeight();
+  }
+
+  openServices() {
+    // hover-friendly sólo en desktop con hover real
+    if (!this.hoverCapable) return;
+    if (this.isServicesOpen) return;
+
+    this.isServicesOpen = true;
+    this.animateServices(true);
+    this.applyHeaderHeight();
+  }
+
+  closeServices() {
+    if (!this.isServicesOpen) return;
+
+    this.isServicesOpen = false;
+    this.animateServices(false);
+    this.applyHeaderHeight();
+  }
+
+  private animateServices(open: boolean) {
+    const menu = this.servicesMenu?.nativeElement;
+    if (!menu) return;
+
+    // ✅ FIX: permitir click INMEDIATO al abrir (evita “no puedo seleccionar”)
+    if (open) gsap.set(menu, { pointerEvents: 'auto' });
+
+    // reduced-motion => instant
+    if (this.reduceMotion || !this.tlServices) {
+      gsap.killTweensOf(menu);
+      gsap.set(menu, {
+        height: open ? 'auto' : 0,
+        opacity: open ? 1 : 0,
+        y: open ? 0 : -6,
+        filter: open ? 'blur(0px)' : 'blur(10px)',
+        pointerEvents: open ? 'auto' : 'none',
+      });
+      return;
+    }
+
+    if (open) {
+      this.tlServices.timeScale(1).play(0);
+    } else {
+      this.tlServices.timeScale(1.08).reverse();
+      gsap.delayedCall(0.36, () => {
+        if (this.isServicesOpen) return;
+        gsap.set(menu, { pointerEvents: 'none' });
+      });
+    }
+  }
+
+  // =========================
+  // ✅ MOBILE MENU CONTROL
+  // =========================
   toggleMenu() {
     this.isMenuOpen = !this.isMenuOpen;
+
+    // si abrís mobile, cerrá servicios
+    if (this.isMenuOpen) this.closeServices();
 
     this.animateMenu(this.isMenuOpen);
     this.applyHeaderHeight();
@@ -230,6 +418,8 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   private animateMenu(open: boolean) {
     const mobile = this.mobileEl?.nativeElement;
     if (!mobile) return;
+
+    if (open) gsap.set(mobile, { pointerEvents: 'auto' }); // ✅ click inmediato
 
     if (this.reduceMotion || !this.tlMenu) {
       gsap.killTweensOf(mobile);
@@ -261,6 +451,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
     this.loggingOut = true;
     this.closeMenu();
+    this.closeServices();
 
     const doLogout = async () => {
       await this.performLogout();
