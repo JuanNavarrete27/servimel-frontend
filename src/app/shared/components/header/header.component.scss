@@ -32,11 +32,11 @@
   --wordW: clamp(120px, 34vw, 170px);
 
   /* ✅ Responsive safety */
-  --brandShift: 25px; /* ✅ (antes 15px) => +10px right */
+  --brandShift: 25px;
   --brandMax: min(70vw, 520px);
   --wordMax: 52vw;
 
-  /* ✅ Halo insets (evita “desborde” feo en mobile) */
+  /* ✅ Halo insets */
   --haloA: clamp(16px, 3vw, 26px);
   --haloB: clamp(10px, 2.2vw, 16px);
 
@@ -56,7 +56,9 @@
   --scrollGlow: 0;
 
   position: relative;
-  overflow: hidden;
+
+  /* ✅ dropdown no se corta */
+  overflow: visible;
 
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -134,7 +136,7 @@
   animation: aura 3.6s ease-in-out infinite;
 }
 
-/* ✅ Scroll effect pro: compacta + más presencia */
+/* ✅ Scroll effect pro */
 .header--scrolled {
   background: linear-gradient(
     180deg,
@@ -163,19 +165,16 @@
   gap: clamp(0.65rem, 2vw, 1.1rem);
   transition: padding 0.22s ease;
 
-  /* ✅ evita saltos raros */
   min-height: 64px;
+
+  overflow: visible;
 }
 
 .header--scrolled .header__inner {
   padding: calc(var(--pad-y) * 0.78) var(--pad-x);
 }
 
-/* ============================================================
-   ✅ FIX REAL: SACAR “CARD” DETRÁS DEL LOGO
-   - neutraliza estilos heredados/globales en .brand
-   - apaga pseudo-elements si existieran por fuera
-============================================================ */
+/* ✅ FIX REAL: SACAR “CARD” DETRÁS DEL LOGO */
 .brand {
   background: transparent !important;
   border: 0 !important;
@@ -212,10 +211,7 @@
   min-width: 0;
   max-width: var(--brandMax);
 
-  /* ✅ 25px a la derecha */
   padding-left: var(--brandShift);
-
-  /* ✅ que nunca empuje al burger */
   flex: 1 1 auto;
 }
 
@@ -229,7 +225,6 @@
   align-items: center;
   justify-content: center;
 
-  /* ✅ blindaje anti-card */
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -237,7 +232,6 @@
   overflow: visible;
   transition: transform 0.22s ease;
 
-  /* ✅ +10px down (integrado) */
   margin-top: calc(clamp(6px, 1.2vw, 10px) + 10px);
 }
 
@@ -245,7 +239,6 @@
   transform: scale(0.93);
 }
 
-/* halos (responsive insets) */
 .brand__logo::before {
   content: "";
   position: absolute;
@@ -291,12 +284,8 @@
   transition: opacity 0.22s ease;
 }
 
-/* ✅ no uses img genérico, solo clases */
-.brand__logo img {
-  display: block;
-}
+.brand__logo img { display: block; }
 
-/* Logo principal (logo.png) */
 .brand__mark {
   width: var(--markSize);
   height: var(--markSize);
@@ -311,13 +300,11 @@
   transition: transform 0.22s ease, filter 0.22s ease;
 }
 
-/* Wordmark (servimelheader.png) */
 .brand__wordmark {
   width: var(--wordW);
   max-width: var(--wordMax);
   height: auto;
 
-  /* ✅ +10px down (integrado) */
   margin-top: calc(clamp(7px, 1.6vw, 10px) + 10px);
   opacity: 0.92;
 
@@ -331,15 +318,8 @@
   transition: transform 0.22s ease, opacity 0.22s ease, filter 0.22s ease;
 }
 
-/* Hover */
-.brand:hover .brand__logo::before {
-  opacity: 0.95;
-  transform: scale(1);
-  filter: blur(14px);
-}
-.brand:hover .brand__logo::after {
-  opacity: 0.68;
-}
+.brand:hover .brand__logo::before { opacity: 0.95; transform: scale(1); filter: blur(14px); }
+.brand:hover .brand__logo::after { opacity: 0.68; }
 .brand:hover .brand__mark {
   transform: translateY(-2px) scale(1.02);
   filter: drop-shadow(0 22px 55px rgba(0, 0, 0, 0.48))
@@ -354,27 +334,12 @@
     drop-shadow(0 0 18px rgba(0, 74, 173, 0.14));
 }
 
-.brand__text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-  min-width: 0;
-}
-
-.brand__name {
-  font-weight: 1000;
-  letter-spacing: 0.25px;
-  font-size: 1.12rem;
-}
-
-.brand__tag {
-  margin-top: 0.18rem;
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-}
+.brand__text { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; }
+.brand__name { font-weight: 1000; letter-spacing: 0.25px; font-size: 1.12rem; }
+.brand__tag { margin-top: 0.18rem; font-size: 0.88rem; color: var(--ink-soft); }
 
 /* =========================
-   NAV DESKTOP (SOLO TEXTO)
+   NAV DESKTOP
 ========================= */
 .nav--desktop {
   display: flex;
@@ -383,126 +348,14 @@
   justify-content: center;
   align-items: center;
   min-width: 0;
+  overflow: visible;
 }
 
-.nav__link {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-
-  color: rgba(255, 255, 255, 0.78);
-  text-decoration: none;
-
-  padding: 0.25rem 0.1rem;
-
-  font-weight: 950;
-  font-size: 1rem;
-  letter-spacing: 0.18px;
-
-  animation: rise 0.55s ease both;
-  animation-delay: calc(0.1s + (var(--i, 0) * 0.05s));
-
-  transition: transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
-}
-
-/* underline base */
-.nav__link::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -10px;
-
-  height: 2px;
-  border-radius: 999px;
-
-  background: linear-gradient(
-    90deg,
-    rgba(182, 203, 51, 0),
-    rgba(182, 203, 51, 0.75),
-    rgba(0, 74, 173, 0.7),
-    rgba(0, 74, 173, 0)
-  );
-
-  opacity: 0;
-  transform: scaleX(0.35);
-  transform-origin: center;
-
-  filter: blur(0.2px);
-  transition: opacity 0.18s ease, transform 0.22s ease;
-}
-
-/* sweep highlight */
-.nav__link::after {
-  content: "";
-  position: absolute;
-  inset: -10px -14px;
-  border-radius: 999px;
-  pointer-events: none;
-
-  background: radial-gradient(
-      circle at 30% 40%,
-      rgba(182, 203, 51, 0.14),
-      transparent 55%
-    ),
-    radial-gradient(
-      circle at 70% 40%,
-      rgba(0, 74, 173, 0.12),
-      transparent 58%
-    );
-
-  opacity: 0;
-  filter: blur(10px);
-  transform: translateY(2px);
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-
-.nav__link:hover {
-  color: rgba(255, 255, 255, 0.96);
-  transform: translateY(-1px);
-  text-shadow: 0 0 18px rgba(182, 203, 51, 0.18),
-    0 0 22px rgba(0, 74, 173, 0.14);
-}
-.nav__link:hover::before {
-  opacity: 1;
-  transform: scaleX(1);
-}
-.nav__link:hover::after {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.nav__link.is-active {
-  color: rgba(255, 255, 255, 0.96);
-}
-.nav__link.is-active::before {
-  opacity: 1;
-  transform: scaleX(1);
-  background: linear-gradient(
-    90deg,
-    rgba(182, 203, 51, 0),
-    rgba(182, 203, 51, 0.9),
-    rgba(182, 203, 51, 0.55),
-    rgba(0, 74, 173, 0)
-  );
-}
-
-/* =========================
-   ACTIONS
-========================= */
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-
-  animation: rise 0.55s ease both;
-  animation-delay: 0.18s;
-
-  flex: 0 0 auto;
-}
-
-/* Perfil (sin caja) */
-.actions .btn--profile {
+/* ============================================================
+   ✅ PERFIL STYLE (base) + SERVICIOS MISMO ADN
+============================================================ */
+.btn--profile,
+.services__btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -520,22 +373,32 @@
   background: transparent !important;
   box-shadow: none !important;
 
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+  font: inherit;
+
   transition: transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
 }
 
-.actions .btn--profile::before,
-.actions .btn--profile::after {
+.btn--profile::before,
+.btn--profile::after,
+.services__btn::before,
+.services__btn::after {
   content: "";
   position: absolute;
   pointer-events: none;
 }
 
-.actions .btn--profile::before {
+.btn--profile::before,
+.services__btn::before {
   left: 0;
   right: 0;
   bottom: -10px;
+
   height: 2px;
   border-radius: 999px;
+
   background: linear-gradient(
     90deg,
     rgba(182, 203, 51, 0),
@@ -543,15 +406,18 @@
     rgba(0, 74, 173, 0.7),
     rgba(0, 74, 173, 0)
   );
+
   opacity: 0;
   transform: scaleX(0.35);
   transform-origin: center;
   transition: opacity 0.18s ease, transform 0.22s ease;
 }
 
-.actions .btn--profile::after {
+.btn--profile::after,
+.services__btn::after {
   inset: -10px -14px;
   border-radius: 999px;
+
   background: radial-gradient(
       circle at 30% 40%,
       rgba(182, 203, 51, 0.14),
@@ -562,26 +428,185 @@
       rgba(0, 74, 173, 0.12),
       transparent 58%
     );
+
   opacity: 0;
   filter: blur(10px);
   transform: translateY(2px);
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
-.actions .btn--profile:hover {
+.btn--profile:hover,
+.services__btn:hover {
   color: rgba(255, 255, 255, 0.96);
   transform: translateY(-1px);
   text-shadow: 0 0 18px rgba(182, 203, 51, 0.18),
     0 0 22px rgba(0, 74, 173, 0.14);
 }
-.actions .btn--profile:hover::before {
+
+.btn--profile:hover::before,
+.services__btn:hover::before { opacity: 1; transform: scaleX(1); }
+.btn--profile:hover::after,
+.services__btn:hover::after { opacity: 1; transform: translateY(0); }
+
+.btn--profile:focus-visible,
+.services__btn:focus-visible {
+  border-radius: 12px;
+  box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.25),
+    0 0 0 7px rgba(182, 203, 51, 0.12) !important;
+}
+
+/* ✅ estado activo/abierto para Servicios */
+.services__btn.is-open,
+.services__btn.is-active {
+  color: rgba(255, 255, 255, 0.96);
+}
+.services__btn.is-open::before,
+.services__btn.is-active::before {
   opacity: 1;
   transform: scaleX(1);
 }
-.actions .btn--profile:hover::after {
-  opacity: 1;
-  transform: translateY(0);
+
+/* =========================
+   SERVICES WRAP + MENU
+========================= */
+.services {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  z-index: 80;
+  overflow: visible;
 }
+
+/* ✅ “puente” invisible para que NO se cierre al mover el mouse al menú */
+.services::after {
+  content: "";
+  position: absolute;
+  left: -18px;
+  right: -18px;
+  top: calc(100% - 2px);
+  height: 24px; /* cubre gap + tolerancia */
+  background: transparent;
+  pointer-events: auto;
+}
+
+.chev {
+  width: 10px;
+  height: 10px;
+  margin-left: 0.5rem;
+  display: inline-block;
+  border-right: 2px solid rgba(255, 255, 255, 0.70);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.70);
+  transform: translateY(-1px) rotate(45deg);
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  opacity: 0.75;
+}
+.services__btn.is-open .chev {
+  transform: translateY(1px) rotate(-135deg);
+  opacity: 0.95;
+}
+
+.services__menu {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+
+  min-width: 280px;
+  max-width: min(360px, 62vw);
+
+  padding: 0.35rem 0.35rem;
+  border-radius: 18px;
+
+  overflow: hidden; /* GSAP height */
+  z-index: 999;
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+
+  background: linear-gradient(
+    180deg,
+    rgba(15, 72, 102, 0.66),
+    rgba(10, 35, 52, 0.28)
+  );
+
+  border: 1px solid rgba(182, 203, 51, 0.16);
+  box-shadow: var(--shadow-deep), 0 18px 60px rgba(0, 74, 173, 0.16);
+
+  transform-origin: top center;
+  will-change: height, opacity, transform, filter;
+
+  /* ✅ extra: si GSAP demora, igual que no “robe” clicks arriba */
+  pointer-events: none;
+}
+
+.services__menu::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateX(-50%) rotate(45deg);
+
+  background: linear-gradient(
+    180deg,
+    rgba(15, 72, 102, 0.72),
+    rgba(10, 35, 52, 0.30)
+  );
+  border-left: 1px solid rgba(182, 203, 51, 0.16);
+  border-top: 1px solid rgba(182, 203, 51, 0.16);
+  border-top-left-radius: 4px;
+}
+
+.services__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+
+  padding: 0.92rem 0.75rem;
+  text-decoration: none;
+
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+
+  border: 1px solid transparent;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.services__item + .services__item { margin-top: 0.18rem; }
+
+.services__item:hover {
+  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(182, 203, 51, 0.14);
+}
+
+.services__item.is-active {
+  background: rgba(182, 203, 51, 0.10);
+  border-color: rgba(182, 203, 51, 0.18);
+}
+.services__item.is-active .m-dot {
+  background: rgba(182, 203, 51, 0.92);
+  box-shadow: 0 0 0 6px rgba(182, 203, 51, 0.10);
+}
+
+/* =========================
+   ACTIONS
+========================= */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+
+  animation: rise 0.55s ease both;
+  animation-delay: 0.18s;
+
+  flex: 0 0 auto;
+}
+
+/* (mantengo selector viejo para no romper nada) */
+.actions .btn--profile {}
 
 /* =========================
    BURGER (SIN CAJA / SIN BORDE)
@@ -607,16 +632,9 @@
 
   transition: transform 0.18s ease;
 }
-.burger:active {
-  transform: scale(0.96);
-}
+.burger:active { transform: scale(0.96); }
 
-.burger__icon {
-  position: relative;
-  width: 26px;
-  height: 18px;
-  display: block;
-}
+.burger__icon { position: relative; width: 26px; height: 18px; display: block; }
 
 .burger__icon span {
   position: absolute;
@@ -625,7 +643,6 @@
 
   height: 2px;
   border-radius: 999px;
-
   background: rgba(255, 255, 255, 0.88);
 
   transform-origin: center;
@@ -636,18 +653,9 @@
 .burger__icon span:nth-child(2) { top: 8px; opacity: 0.92; }
 .burger__icon span:nth-child(3) { top: 16px; }
 
-.burger.is-open .burger__icon span:nth-child(1) {
-  top: 8px;
-  transform: rotate(45deg);
-}
-.burger.is-open .burger__icon span:nth-child(2) {
-  opacity: 0;
-  transform: scaleX(0.6);
-}
-.burger.is-open .burger__icon span:nth-child(3) {
-  top: 8px;
-  transform: rotate(-45deg);
-}
+.burger.is-open .burger__icon span:nth-child(1) { top: 8px; transform: rotate(45deg); }
+.burger.is-open .burger__icon span:nth-child(2) { opacity: 0; transform: scaleX(0.6); }
+.burger.is-open .burger__icon span:nth-child(3) { top: 8px; transform: rotate(-45deg); }
 
 .burger:focus-visible {
   border-radius: 12px;
@@ -697,14 +705,9 @@
   transition: transform 0.18s ease, color 0.18s ease;
 }
 
-.nav--mobile .nav__link:hover {
-  transform: translateX(2px);
-  color: rgba(255, 255, 255, 0.98);
-}
+.nav--mobile .nav__link:hover { transform: translateX(2px); color: rgba(255, 255, 255, 0.98); }
 
-.nav--mobile .nav__link.is-active {
-  color: rgba(255, 255, 255, 0.98);
-}
+.nav--mobile .nav__link.is-active { color: rgba(255, 255, 255, 0.98); }
 .nav--mobile .nav__link.is-active .m-dot {
   background: rgba(182, 203, 51, 0.92);
   box-shadow: 0 0 0 6px rgba(182, 203, 51, 0.1);
@@ -732,28 +735,23 @@
   opacity: 0.9;
 }
 
-.nav__link--muted {
-  opacity: 0.86;
-}
+.nav__link--muted { opacity: 0.86; }
 
 /* =========================
    RESPONSIVE
 ========================= */
-
-/* Tablets / mobile landscape */
 @media (max-width: 980px) {
   .nav--desktop { display: none; }
   .actions .btn--profile { display: none; }
   .burger { display: flex; }
 
   :host {
-    --brandMax: 76vw;    /* ✅ deja aire para el burger */
+    --brandMax: 76vw;
     --wordMax: 56vw;
-    --brandShift: 22px;  /* ✅ (antes 12px) => +10px right */
+    --brandShift: 22px;
   }
 }
 
-/* Tablets chicos / móviles grandes */
 @media (max-width: 768px) {
   :host {
     --pad-x: 1rem;
@@ -765,15 +763,13 @@
 
     --brandMax: 74vw;
     --wordMax: 56vw;
-    --brandShift: 22px; /* ✅ (antes 12px) => +10px right */
+    --brandShift: 22px;
   }
 
-  /* ✅ +10px down consistente */
   .brand__logo { margin-top: 16px; }
   .brand__wordmark { margin-top: 18px; }
 }
 
-/* Móviles medianos */
 @media (max-width: 560px) {
   :host {
     --pad-x: 0.95rem;
@@ -785,7 +781,7 @@
 
     --brandMax: 72vw;
     --wordMax: 54vw;
-    --brandShift: 20px; /* ✅ (antes 10px) => +10px right */
+    --brandShift: 20px;
 
     --haloA: 18px;
     --haloB: 12px;
@@ -794,12 +790,10 @@
   .header__inner { gap: 0.7rem; }
   .header--scrolled .header__inner { padding: 0.78rem var(--pad-x); }
 
-  /* ✅ +10px down consistente */
   .brand__logo { margin-top: 16px; }
   .brand__wordmark { margin-top: 18px; }
 }
 
-/* Móviles chicos (muy angostos) */
 @media (max-width: 420px) {
   :host {
     --pad-x: 0.85rem;
@@ -809,7 +803,7 @@
 
     --brandMax: 70vw;
     --wordMax: 52vw;
-    --brandShift: 18px; /* ✅ (antes 8px) => +10px right */
+    --brandShift: 18px;
 
     --haloA: 16px;
     --haloB: 10px;
@@ -825,8 +819,7 @@
   .header,
   .header::before,
   .header::after,
-  .brand,
-  .nav__link {
+  .brand {
     animation: none !important;
   }
 }
@@ -838,18 +831,15 @@
   from { transform: translateY(-10px); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
-
 @keyframes rise {
   from { transform: translateY(10px); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
-
 @keyframes scan {
   0%   { transform: translateY(-2%); opacity: 0.1; }
   50%  { transform: translateY(2%);  opacity: 0.18; }
   100% { transform: translateY(-2%); opacity: 0.1; }
 }
-
 @keyframes aura {
   0%,100% { filter: blur(8px); }
   50%     { filter: blur(10px); }
@@ -960,11 +950,26 @@
   50%     { transform: scale(1.04); opacity: 1; }
 }
 
-/* ✅ para que el botón logout del menú no herede estilos raros */
 .nav--mobile button.nav__link{
   width: 100%;
   text-align: left;
   cursor: pointer;
   font: inherit;
   appearance: none;
+}
+
+
+/* ============================================================
+   ✅ FIX — Unificar tipografía de todos los botones del header
+   (Servicios, Residentes, Perfil, etc.)
+   Mantiene el mismo font-family global del sistema
+============================================================ */
+.header,
+.nav__link,
+.services__btn,
+.services__item,
+.actions .btn--profile {
+  font-family: var(--font-sans, "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif) !important;
+  font-weight: 950;
+  letter-spacing: 0.18px;
 }
