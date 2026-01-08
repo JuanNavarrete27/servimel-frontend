@@ -1,57 +1,157 @@
-<section class="page">
-  <header class="head">
-    <div>
-      <div class="eyebrow">Actividad</div>
-      <h1>Educación física</h1>
-      <p>Actividades adaptadas para residentes. Diseño coherente con el resto del sistema y sin llamadas adicionales al backend.</p>
+<!-- src/app/pages/ed-fisica/ed-fisica.page.html -->
+<section #pageRoot class="servicio-page">
+
+  <!-- Header -->
+  <header class="hero">
+    <div class="hero__left">
+      <div class="kicker">SERVIMEL · Servicios</div>
+
+      <h1 class="title">
+        {{ category?.name || 'Educación Física' }}
+      </h1>
+
+      <p class="subtitle" *ngIf="category?.description; else defaultDesc">
+        {{ category?.description }}
+      </p>
+      <ng-template #defaultDesc>
+        <p class="subtitle">
+          Actividades, rutinas y contenidos para acompañar el movimiento y el bienestar.
+        </p>
+      </ng-template>
+
+      <div class="actions">
+        <button class="btn btn--ghost" type="button" (click)="refresh()" [disabled]="loading">
+          Actualizar
+        </button>
+
+        <div class="search">
+          <span class="search__icon" aria-hidden="true">⌕</span>
+          <input
+            type="text"
+            [(ngModel)]="q"
+            (input)="onSearchInput()"
+            placeholder="Buscar..."
+            aria-label="Buscar en Educación Física"
+            [disabled]="loading"
+          />
+        </div>
+      </div>
     </div>
 
-    <div class="head__pills">
-      <span class="pill">Movilidad</span>
-      <span class="pill">Fuerza</span>
-      <span class="pill">Seguridad</span>
+    <div class="hero__right">
+      <div class="badge">
+        <div class="badge__label">Slug</div>
+        <div class="badge__value">{{ slug }}</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat__k">{{ items?.length || 0 }}</div>
+          <div class="stat__t">Ítems</div>
+        </div>
+        <div class="stat">
+          <div class="stat__k">DB</div>
+          <div class="stat__t">Real</div>
+        </div>
+      </div>
     </div>
   </header>
 
-  <section class="panel">
-    <div class="panel__head">
-      <div>
-        <div class="eyebrow">Organización</div>
-        <h2>Secciones clave</h2>
-      </div>
-      <span class="tag">Sin datos en vivo</span>
+  <!-- States -->
+  <div class="state" *ngIf="loading">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="state__text">Cargando contenido…</div>
+  </div>
+
+  <div class="state state--error" *ngIf="!loading && errorMsg">
+    <div class="state__title">No se pudo cargar</div>
+    <div class="state__text">{{ errorMsg }}</div>
+    <button class="btn" type="button" (click)="refresh()">Reintentar</button>
+  </div>
+
+  <!-- List -->
+  <section class="grid" *ngIf="!loading && !errorMsg">
+
+    <div class="state state--sub" *ngIf="loadingItems">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="state__text">Buscando…</div>
     </div>
 
-    <div class="cards">
-      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
-        <div class="card__eyebrow">{{ s.title }}</div>
-        <p class="card__desc">{{ s.desc }}</p>
-        <ul>
-          <li *ngFor="let b of s.bullets">{{ b }}</li>
-        </ul>
+    <ng-container *ngIf="!loadingItems">
+      <article
+        class="card"
+        *ngFor="let it of items; trackBy: trackById"
+        (click)="openItem(it)"
+        tabindex="0"
+        role="button"
+        [attr.aria-label]="'Abrir: ' + (it.title || 'Ítem')"
+      >
+        <div class="card__top">
+          <div class="card__title">{{ it.title }}</div>
+          <div class="pill" *ngIf="it.is_active === false">Inactivo</div>
+        </div>
+
+        <div class="card__desc" *ngIf="it.description; else noDesc">
+          {{ it.description }}
+        </div>
+        <ng-template #noDesc>
+          <div class="card__desc card__desc--muted">
+            Sin descripción.
+          </div>
+        </ng-template>
+
+        <div class="card__meta">
+          <span *ngIf="it.created_at">Creado: {{ it.created_at | date:'short' }}</span>
+          <span *ngIf="it.updated_at">· Actualizado: {{ it.updated_at | date:'short' }}</span>
+        </div>
+
+        <div class="card__cta">
+          Ver detalle →
+        </div>
       </article>
-    </div>
+
+      <div class="empty" *ngIf="(items?.length || 0) === 0">
+        <div class="empty__title">Sin resultados</div>
+        <div class="empty__text">
+          Probá con otra búsqueda o tocá “Actualizar”.
+        </div>
+      </div>
+    </ng-container>
   </section>
 
-  <section class="panel">
-    <div class="panel__head">
-      <div>
-        <div class="eyebrow">Seguimiento</div>
-        <h2>Estado actual</h2>
+  <!-- Modal -->
+  <div class="modal" *ngIf="selected" (click)="closeModal()">
+    <div class="modal__card" (click)="$event.stopPropagation()">
+      <div class="modal__head">
+        <div class="modal__title">{{ selected?.title }}</div>
+        <button class="iconbtn" type="button" (click)="closeModal()" aria-label="Cerrar">
+          ✕
+        </button>
       </div>
-      <span class="tag tag--muted">Listo para datos reales</span>
-    </div>
 
-    <div class="highlights">
-      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
-        <div class="highlight__label">{{ h.label }}</div>
-        <div class="highlight__detail">{{ h.detail }}</div>
+      <div class="modal__sub" *ngIf="selected?.description">
+        {{ selected?.description }}
+      </div>
+
+      <div class="modal__content" *ngIf="selected?.content; else noContent">
+        <div class="content" [innerHTML]="selected!.content"></div>
+      </div>
+
+      <ng-template #noContent>
+        <div class="modal__content modal__content--muted">
+          Sin contenido extendido.
+        </div>
+      </ng-template>
+
+      <div class="modal__foot">
+        <div class="meta">
+          <div *ngIf="selected?.created_at">Creado: {{ selected?.created_at | date:'short' }}</div>
+          <div *ngIf="selected?.updated_at">Actualizado: {{ selected?.updated_at | date:'short' }}</div>
+        </div>
+
+        <button class="btn" type="button" (click)="closeModal()">Cerrar</button>
       </div>
     </div>
+  </div>
 
-    <div class="empty">
-      <div class="empty__title">Sin actividades registradas</div>
-      <div class="empty__text">Cuando el equipo cargue datos se mostrarán acá. Por ahora mantenemos un estado limpio sin errores.</div>
-    </div>
-  </section>
 </section>

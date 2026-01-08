@@ -1,57 +1,156 @@
-<section class="page">
-  <header class="head">
-    <div>
-      <div class="eyebrow">Salud</div>
-      <h1>Medicina general</h1>
-      <p>Registra consultas, indicaciones y comunicación con el equipo sin inventar endpoints. La página sigue el layout de Servimel para evitar rupturas.</p>
+<!-- src/app/pages/medicina-general/medicina-general.page.html -->
+<section #pageRoot class="svc-page">
+  <!-- Header -->
+  <header class="svc-hero">
+    <div class="svc-hero__top">
+      <div class="svc-hero__title">
+        <h1 class="h1">
+          {{ category?.name || 'Medicina General' }}
+        </h1>
+        <p class="sub" *ngIf="category?.description">
+          {{ category?.description }}
+        </p>
+      </div>
+
+      <div class="svc-hero__meta">
+        <span class="chip">
+          {{ items.length }} ítems
+        </span>
+        <span class="chip chip--soft" *ngIf="searching">
+          Buscando…
+        </span>
+      </div>
     </div>
 
-    <div class="head__pills">
-      <span class="pill">Consultas</span>
-      <span class="pill">Indicaciones</span>
-      <span class="pill">Familia</span>
+    <!-- Search -->
+    <div class="svc-search" role="search" aria-label="Buscar en Medicina General">
+      <div class="svc-search__input">
+        <span class="svc-search__icon" aria-hidden="true">⌕</span>
+
+        <input
+          type="search"
+          name="q"
+          placeholder="Buscar procedimientos, recomendaciones, notas…"
+          [(ngModel)]="q"
+          (ngModelChange)="onSearchChange($event)"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Buscar"
+        />
+
+        <button
+          class="svc-search__clear"
+          type="button"
+          (click)="clearSearch()"
+          [disabled]="!q"
+          aria-label="Limpiar búsqueda"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="svc-search__hint">
+        <span *ngIf="q && q.trim().length < 2">Escribí al menos 2 caracteres para buscar en servidor.</span>
+        <span *ngIf="!q">Tip: podés buscar por título o contenido.</span>
+      </div>
     </div>
   </header>
 
-  <section class="panel">
-    <div class="panel__head">
-      <div>
-        <div class="eyebrow">Organización</div>
-        <h2>Secciones clave</h2>
+  <!-- States -->
+  <div class="svc-state" *ngIf="loading" aria-busy="true" aria-live="polite">
+    <div class="skeleton">
+      <div class="sk sk--t"></div>
+      <div class="sk sk--l"></div>
+      <div class="sk sk--l"></div>
+      <div class="sk sk--l"></div>
+    </div>
+  </div>
+
+  <div class="svc-state svc-state--error" *ngIf="!loading && error" role="alert">
+    <div class="svc-state__title">No se pudo cargar</div>
+    <div class="svc-state__msg">{{ error }}</div>
+    <button class="btn" type="button" (click)="loadBase()">Reintentar</button>
+  </div>
+
+  <div class="svc-state svc-state--empty" *ngIf="!loading && !error && items.length === 0">
+    <div class="svc-state__title">Sin resultados</div>
+    <div class="svc-state__msg">
+      Probá con otro término de búsqueda o limpiá el filtro.
+    </div>
+    <button class="btn" type="button" (click)="clearSearch()" [disabled]="!q">Limpiar</button>
+  </div>
+
+  <!-- List -->
+  <div class="svc-grid" *ngIf="!loading && !error && items.length > 0">
+    <article
+      class="svc-card"
+      *ngFor="let it of items; trackBy: trackById"
+      (click)="openItem(it)"
+      (keydown.enter)="openItem(it)"
+      tabindex="0"
+      role="button"
+      [attr.aria-label]="'Abrir: ' + (it.title || 'Ítem')"
+    >
+      <div class="svc-card__head">
+        <h3 class="svc-card__title">{{ it.title }}</h3>
+
+        <!-- ✅ FIX: is_active boolean -->
+        <span class="svc-card__badge" *ngIf="it.is_active === false">Inactivo</span>
       </div>
-      <span class="tag">Sin datos en vivo</span>
-    </div>
 
-    <div class="cards">
-      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
-        <div class="card__eyebrow">{{ s.title }}</div>
-        <p class="card__desc">{{ s.desc }}</p>
-        <ul>
-          <li *ngFor="let b of s.bullets">{{ b }}</li>
-        </ul>
-      </article>
-    </div>
-  </section>
+      <p class="svc-card__desc" *ngIf="it.description; else fallbackPreview">
+        {{ it.description }}
+      </p>
 
-  <section class="panel">
-    <div class="panel__head">
-      <div>
-        <div class="eyebrow">Seguimiento</div>
-        <h2>Estado actual</h2>
+      <ng-template #fallbackPreview>
+        <p class="svc-card__desc" *ngIf="it.content">
+          {{ it.content | slice:0:180 }}
+          <span *ngIf="(it.content?.length || 0) > 180">…</span>
+        </p>
+      </ng-template>
+
+      <div class="svc-card__foot">
+        <span class="svc-card__meta" *ngIf="it.updated_at || it.created_at">
+          {{ fmtDate(it.updated_at || it.created_at) }}
+        </span>
+        <span class="svc-card__cta">Ver detalle →</span>
       </div>
-      <span class="tag tag--muted">Compatible con SSR</span>
-    </div>
+    </article>
+  </div>
 
-    <div class="highlights">
-      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
-        <div class="highlight__label">{{ h.label }}</div>
-        <div class="highlight__detail">{{ h.detail }}</div>
+  <!-- Modal -->
+  <div class="modal" *ngIf="modalOpen" (click)="closeModal()" role="dialog" aria-modal="true">
+    <div class="modal__card" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <div class="modal__title">
+          <h2>{{ selected?.title }}</h2>
+          <div class="modal__sub">
+            <span *ngIf="selected?.updated_at || selected?.created_at">
+              {{ fmtDate(selected?.updated_at || selected?.created_at) }}
+            </span>
+          </div>
+        </div>
+
+        <button class="modal__close" type="button" (click)="closeModal()" aria-label="Cerrar">
+          ✕
+        </button>
+      </div>
+
+      <div class="modal__body">
+        <p class="modal__desc" *ngIf="selected?.description">{{ selected?.description }}</p>
+
+        <div class="modal__content" *ngIf="selected?.content">
+          <pre class="content-pre">{{ selected?.content }}</pre>
+        </div>
+
+        <div class="modal__empty" *ngIf="!selected?.content && !selected?.description">
+          Sin contenido para mostrar.
+        </div>
+      </div>
+
+      <div class="modal__footer">
+        <button class="btn btn--ghost" type="button" (click)="closeModal()">Cerrar</button>
       </div>
     </div>
-
-    <div class="empty">
-      <div class="empty__title">Sin consultas registradas</div>
-      <div class="empty__text">Cuando haya datos reales aparecerán acá. Mientras tanto tenés un marco visual coherente con el resto del sistema.</div>
-    </div>
-  </section>
+  </div>
 </section>
