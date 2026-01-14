@@ -8,6 +8,7 @@ import {
   PLATFORM_ID,
   HostListener,
   OnInit,
+  NgZone,
 } from '@angular/core';
 import { isPlatformBrowser, CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -193,6 +194,7 @@ export class ResidentesPage implements OnInit, AfterViewInit, OnDestroy {
     private http: HttpClient,
     private router: Router,
     private host: ElementRef<HTMLElement>,
+    private ngZone: NgZone,
     @Inject(PLATFORM_ID) private platformId: object
   ) {}
 
@@ -202,12 +204,25 @@ export class ResidentesPage implements OnInit, AfterViewInit, OnDestroy {
 
   /* =========================
      GSAP ENTER (pro)
+     ✅ FIX NG0100: diferimos todo fuera de Angular
+     para no meter microtasks durante el primer check.
   ========================= */
-  async ngAfterViewInit(): Promise<void> {
+  ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    this.setMouseVars(50, 35);
+    // Variables CSS: OK hacerlo ya, pero lo dejamos también diferido para 0 ruido.
+    this.ngZone.runOutsideAngular(() => {
+      requestAnimationFrame(() => {
+        // macrotask extra para pasar el "checkNoChanges" del bootstrap
+        setTimeout(() => {
+          this.setMouseVars(50, 35);
+          this.initGsapSafe();
+        }, 0);
+      });
+    });
+  }
 
+  private async initGsapSafe(): Promise<void> {
     try {
       const mod = await import('gsap');
       const gsap = mod.gsap;

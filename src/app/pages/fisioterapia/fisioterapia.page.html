@@ -1,25 +1,125 @@
 <section class="page">
   <header class="head">
-    <div>
+    <div class="head__copy">
       <div class="eyebrow">Salud</div>
       <h1>Fisioterapia</h1>
-      <p>Gestioná sesiones y notas clínicas siguiendo el mismo estilo visual del resto de Servimel. No se agregan endpoints nuevos: todo el contenido es guía limpia.</p>
+      <p>
+        Gestioná sesiones y notas clínicas.
+      </p>
     </div>
 
     <div class="head__pills">
       <span class="pill">Turnos</span>
       <span class="pill">Protocolos</span>
       <span class="pill">Seguimiento</span>
+
+      <span
+        class="pill pill--role"
+        [class.pill--physio]="isFisioterapeuta"
+        [attr.data-tone]="isFisioterapeuta ? 'ok' : 'muted'"
+        title="Rol detectado (UI)"
+      >
+        {{ isFisioterapeuta ? 'Fisioterapeuta' : (userRole || 'Sin rol') }}
+      </span>
     </div>
   </header>
 
+  <!-- =========================
+       RESIDENTES (REALES)
+       ========================= -->
+  <section class="panel panel--residents">
+    <div class="panel__head">
+      <div>
+        <div class="eyebrow">Residentes</div>
+        <h2>Seleccioná un residente</h2>
+        <p class="muted">Tocá una card para abrir la ficha de fisioterapia (resumen, sesiones y notas).</p>
+
+        <!-- Estado carga -->
+        <p class="muted" *ngIf="loadingResidents">Cargando residentes…</p>
+        <p class="muted" *ngIf="!loadingResidents && errorMsg">{{ errorMsg }}</p>
+      </div>
+
+      <div class="panel__meta">
+        <span class="tag">Vinculado a Residentes</span>
+        <span class="tag tag--muted">{{ filteredResidents.length }} en pantalla</span>
+      </div>
+    </div>
+
+    <div class="search">
+      <div class="search__icon" aria-hidden="true"></div>
+
+      <input
+        class="search__input"
+        type="text"
+        [value]="search"
+        (input)="search = ($any($event.target)?.value || '')"
+        placeholder="Buscar por nombre, habitación o ID…"
+        aria-label="Buscar residentes"
+      />
+
+      <button
+        class="search__clear"
+        type="button"
+        (click)="search = ''"
+        [disabled]="!search"
+        aria-label="Limpiar búsqueda"
+        title="Limpiar"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div class="residents" *ngIf="!loadingResidents && !errorMsg">
+      <button
+        class="resident"
+        type="button"
+        *ngFor="let r of filteredResidents; trackBy: trackByResident"
+        (click)="openResidentModal(r)"
+      >
+        <div class="resident__left">
+          <div class="avatar" aria-hidden="true">
+            <span class="avatar__txt">{{ (r.nombre || '?').slice(0,1) }}{{ (r.apellido || '').slice(0,1) }}</span>
+          </div>
+
+          <div class="resident__info">
+            <div class="resident__name">
+              {{ r.nombre }} {{ r.apellido }}
+              <span class="badge" *ngIf="r.nroHabitacion">Hab. {{ r.nroHabitacion }}</span>
+              <span class="badge badge--muted" *ngIf="r.cama">Cama {{ r.cama }}</span>
+              <span class="badge badge--muted" *ngIf="!r.nroHabitacion && !r.cama">ID {{ r.id }}</span>
+            </div>
+
+            <div class="resident__sub">
+              <span class="dot" aria-hidden="true"></span>
+              <span>Fisioterapia</span>
+              <span class="sep" aria-hidden="true">•</span>
+              <span class="hint">Ver resumen, sesiones y notas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="resident__right" aria-hidden="true">
+          <span class="arrow">→</span>
+        </div>
+      </button>
+    </div>
+
+    <div class="empty empty--mini" *ngIf="!loadingResidents && !errorMsg && filteredResidents.length === 0">
+      <div class="empty__title">Sin coincidencias</div>
+      <div class="empty__text">Probá con otro nombre, con el número de habitación o con el ID.</div>
+    </div>
+  </section>
+
+  <!-- =========================
+       GUÍA / SECCIONES
+       ========================= -->
   <section class="panel">
     <div class="panel__head">
       <div>
         <div class="eyebrow">Organización</div>
         <h2>Secciones clave</h2>
       </div>
-      <span class="tag">Sin datos en vivo</span>
+      <span class="tag">Guía</span>
     </div>
 
     <div class="cards">
@@ -33,25 +133,256 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel panel--status">
     <div class="panel__head">
       <div>
         <div class="eyebrow">Seguimiento</div>
         <h2>Estado actual</h2>
       </div>
-      <span class="tag tag--muted">Esperando registros reales</span>
+      <span class="tag tag--muted">Se actualiza al abrir un residente</span>
     </div>
 
     <div class="highlights">
-      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
+      <div
+        class="highlight"
+        *ngFor="let h of highlights; trackBy: trackByHighlight"
+        [attr.data-tone]="h.tone"
+      >
         <div class="highlight__label">{{ h.label }}</div>
         <div class="highlight__detail">{{ h.detail }}</div>
       </div>
     </div>
 
     <div class="empty">
-      <div class="empty__title">Sin turnos cargados</div>
-      <div class="empty__text">Cuando el backend tenga datos, se listarán acá con el mismo layout. Por ahora es una guía limpia para evitar errores en consola.</div>
+      <div class="empty__title">Abrí un residente para ver su ficha</div>
+      <div class="empty__text">
+        La ficha intenta leer datos reales del backend (si existen endpoints). Si no existen todavía, mantiene la UI estable con fallback local.
+      </div>
     </div>
   </section>
+
+  <!-- =========================
+       MODAL RESIDENTE (FISIO)
+       ========================= -->
+  <div class="modal" *ngIf="isModalOpen" (click)="closeResidentModal()" role="dialog" aria-modal="true">
+    <div class="modal__card" (click)="$event.stopPropagation()">
+      <header class="modal__head">
+        <div class="modal__title">
+          <div class="modal__kicker">Fisioterapia • Ficha</div>
+
+          <div class="modal__name">
+            <span>{{ selectedResident?.nombre }} {{ selectedResident?.apellido }}</span>
+
+            <span
+              class="status"
+              [attr.data-tone]="
+                selectedPhysio?.status === 'en-plan' ? 'ok' :
+                selectedPhysio?.status === 'pendiente' ? 'warn' :
+                selectedPhysio?.status === 'alta' ? 'info' : 'muted'
+              "
+            >
+              {{ getStatusLabel($any(selectedPhysio?.status)) }}
+            </span>
+
+            <span class="badge badge--muted" *ngIf="selectedResident?.nroHabitacion">
+              Hab. {{ selectedResident?.nroHabitacion }}
+            </span>
+          </div>
+
+          <div class="modal__meta">
+            <span class="meta__chip">
+              Sesiones: <b>{{ selectedPhysio?.sessions?.length || 0 }}</b>
+            </span>
+            <span class="meta__chip">
+              Notas: <b>{{ selectedPhysio?.notes?.length || 0 }}</b>
+            </span>
+            <span class="meta__chip meta__chip--muted" *ngIf="selectedPhysio?.lastSessionISO">
+              Última: <b>{{ selectedPhysio?.lastSessionISO }}</b>
+            </span>
+
+            <!-- Loading fisio real -->
+            <span class="meta__chip meta__chip--muted" *ngIf="loadingSelectedPhysio">
+              Cargando datos…
+            </span>
+          </div>
+        </div>
+
+        <button class="modal__x" type="button" (click)="closeResidentModal()" aria-label="Cerrar">
+          ✕
+        </button>
+      </header>
+
+      <nav class="tabs" aria-label="Tabs de fisioterapia">
+        <button
+          type="button"
+          class="tab"
+          [class.tab--active]="modalTab === 'resumen'"
+          (click)="setModalTab('resumen')"
+        >
+          Resumen
+        </button>
+
+        <button
+          type="button"
+          class="tab"
+          [class.tab--active]="modalTab === 'sesiones'"
+          (click)="setModalTab('sesiones')"
+        >
+          Sesiones
+        </button>
+
+        <button
+          type="button"
+          class="tab"
+          [class.tab--active]="modalTab === 'notas'"
+          (click)="setModalTab('notas')"
+        >
+          Notas clínicas
+        </button>
+
+        <div class="tabs__glow" aria-hidden="true"></div>
+      </nav>
+
+      <section class="modal__body">
+        <!-- RESUMEN -->
+        <div class="pane" *ngIf="modalTab === 'resumen'">
+          <div class="grid">
+            <article class="glass">
+              <div class="glass__h">Plan / Objetivo</div>
+              <div class="glass__p">
+                {{ selectedPhysio?.planSummary || 'Sin plan activo. Definir objetivos y frecuencia.' }}
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="glass__mini">
+                <div class="mini__k">Modo</div>
+                <div class="mini__v">Ficha</div>
+              </div>
+
+              <div class="glass__mini">
+                <div class="mini__k">Fuente</div>
+                <div class="mini__v">
+                  {{ loadingSelectedPhysio ? 'Consultando backend…' : 'Backend (si existe) / Fallback local' }}
+                </div>
+              </div>
+            </article>
+
+            <article class="glass glass--accent">
+              <div class="glass__h">Atajos</div>
+
+              <div class="ctaRow" *ngIf="canSeeEditEntry; else readonlyBlock">
+                <button
+                  class="cta cta--ghost"
+                  type="button"
+                  (click)="onEditResidentPlaceholder()"
+                  [attr.aria-disabled]="!editSectionReady"
+                >
+                  {{ editEntryLabel }}
+                  <span class="cta__sub">Próximamente</span>
+                </button>
+
+                <a
+                  class="cta"
+                  [class.cta--disabled]="!editSectionReady"
+                  [routerLink]="getEditResidentLink(selectedResident)"
+                  (click)="!editSectionReady && $event.preventDefault()"
+                >
+                  Ir a edición
+                  <span class="cta__sub">Sección futura</span>
+                </a>
+              </div>
+
+              <ng-template #readonlyBlock>
+                <div class="readonly">
+                  <div class="readonly__k">Vista</div>
+                  <div class="readonly__v">Solo lectura</div>
+                  <p class="readonly__p">
+                    Si tu rol es <b>Fisioterapeuta</b>, ves el acceso a edición acá.
+                  </p>
+                </div>
+              </ng-template>
+
+              <div class="divider"></div>
+
+              <div class="hintBox">
+                <div class="hintBox__k">Nota</div>
+                <div class="hintBox__p">
+                  Esta ficha intenta cargar sesiones y notas desde el backend. Si aún no existen endpoints, mantiene el contenido estable con fallback local.
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- SESIONES -->
+        <div class="pane" *ngIf="modalTab === 'sesiones'">
+          <div class="list" *ngIf="(selectedPhysio?.sessions?.length || 0) > 0; else noSessions">
+            <article class="item" *ngFor="let s of selectedPhysio?.sessions">
+              <div class="item__top">
+                <div class="item__date">{{ s.dateISO }}</div>
+                <span class="chip">{{ formatSessionType($any(s.type)) }}</span>
+                <span class="chip chip--muted">{{ s.durationMin }} min</span>
+              </div>
+
+              <div class="item__row">
+                <div class="item__k">Objetivo</div>
+                <div class="item__v">{{ s.objective || '—' }}</div>
+              </div>
+
+              <div class="item__row">
+                <div class="item__k">Resultado</div>
+                <div class="item__v">{{ s.result || '—' }}</div>
+              </div>
+            </article>
+          </div>
+
+          <ng-template #noSessions>
+            <div class="empty empty--modal">
+              <div class="empty__title">Sin sesiones registradas</div>
+              <div class="empty__text">
+                Si el backend aún no tiene endpoints de fisioterapia, no habrá sesiones para mostrar.
+              </div>
+            </div>
+          </ng-template>
+        </div>
+
+        <!-- NOTAS -->
+        <div class="pane" *ngIf="modalTab === 'notas'">
+          <div class="list" *ngIf="(selectedPhysio?.notes?.length || 0) > 0; else noNotes">
+            <article class="item item--note" *ngFor="let n of selectedPhysio?.notes">
+              <div class="item__top">
+                <div class="item__date">{{ n.dateISO }}</div>
+                <span class="chip chip--muted">{{ n.author || 'Equipo' }}</span>
+              </div>
+
+              <div class="noteText">
+                {{ n.text || '—' }}
+              </div>
+            </article>
+          </div>
+
+          <ng-template #noNotes>
+            <div class="empty empty--modal">
+              <div class="empty__title">Sin notas clínicas</div>
+              <div class="empty__text">
+                Si el backend aún no tiene endpoints de fisioterapia, no habrá notas para mostrar.
+              </div>
+            </div>
+          </ng-template>
+        </div>
+      </section>
+
+      <footer class="modal__foot">
+        <div class="foot__left">
+          <span class="foot__dot" aria-hidden="true"></span>
+          <span class="foot__txt">SERVIMEL • Fisioterapia</span>
+        </div>
+
+        <div class="foot__right">
+          <button class="btn" type="button" (click)="closeResidentModal()">Cerrar</button>
+        </div>
+      </footer>
+    </div>
+  </div>
 </section>

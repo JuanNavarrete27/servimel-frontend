@@ -1,113 +1,243 @@
-// src/app/shared/services/auth.service.ts
+// F6 — src/app/shared/services/auth.service.ts
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, firstValueFrom, map } from 'rxjs';
 import { API_CONFIG } from '../../core/config/api.config';
-
-export type AuthRole =
-  | 'admin'
-  | 'enfermeria'
-  | 'medico'
-  | 'cocinero'
-  | 'fisio'
-  | 'entrenador_fisico';
-
-export type AuthUser = {
-  id: number;
-  role: AuthRole;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  avatar_url: string | null;
-};
+import { unwrapApi, ApiResponse } from '../../core/utils/api-unwrap';
 
 const TOKEN_KEY = 'servimel_token_v1';
 const USER_KEY = 'servimel_user_v1';
 
-type ApiOk<T> = { ok: true; data: T };
-type ApiFail = { ok: false; error: { code: string; message: string; details?: any } };
+// compat keys viejas (migración silenciosa)
+const LEGACY_USER_KEYS = ['user', 'servimel_user', 'currentUser', 'auth_user'];
+const LEGACY_TOKEN_KEYS = ['token', 'auth_token', 'access_token', 'jwt', 'servimel_token', 'servimelToken'];
+
+type AnyUser = any;
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private _token$ = new BehaviorSubject<string | null>(this.getStoredToken());
-  token$ = this._token$.asObservable();
+  // Compat: algunos componentes leen .apiUrl/.apiBaseUrl/.baseUrl
+  apiUrl = API_CONFIG.baseUrl;
+  apiBaseUrl = API_CONFIG.baseUrl;
+  baseUrl = API_CONFIG.baseUrl;
 
-  private _user$ = new BehaviorSubject<AuthUser | null>(this.getStoredUser());
-  user$ = this._user$.asObservable();
+  // ✅ Fuente única reactiva de usuario
+  private _user$ = new BehaviorSubject<AnyUser | null>(null);
 
-  constructor(private http: HttpClient) {}
+  // Compat con código que usa currentUser / user
+  user = this._user$;
+  currentUser = this._user$;
 
-  // ✅ compat con tu guard
-  get isLoggedIn(): boolean {
-    return !!this._token$.value;
+  constructor(private http: HttpClient) {
+    this.hydrateFromStorage();
   }
 
-  // ✅ compat con tu interceptor
+  // ============================================================
+  // Session storage (token + user)
+  // ============================================================
+  private hydrateFromStorage(): void {
+    // Token (solo fuerza migración si viene de legacy)
+    this.getToken();
+
+    // User
+    const u = this.readUser();
+    if (u) this._user$.next(u);
+  }
+
+  private readUser(): AnyUser | null {
+    // primero la key nueva
+    const direct = localStorage.getItem(USER_KEY);
+    if (direct) {
+      try {
+        return JSON.parse(direct);
+      } catch {
+        // si está roto, lo limpiamos
+        try {
+          localStorage.removeItem(USER_KEY);
+        } catch {}
+      }
+    }
+
+    // migración desde keys viejas
+    for (const k of LEGACY_USER_KEYS) {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+
+      try {
+        const parsed = JSON.parse(raw);
+        // migramos a key nueva
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(parsed));
+        } catch {}
+        return parsed;
+      } catch {
+        // a veces guardan role string directo, lo ignoramos
+      }
+    }
+
+    return null;
+  }
+
+  private saveUser(u: AnyUser | null): void {
+    if (!u) {
+      try {
+        localStorage.removeItem(USER_KEY);
+      } catch {}
+      this._user$.next(null);
+      return;
+    }
+
+    try {
+      localStorage.setItem(USER_KEY, JSON.stringify(u));
+    } catch {}
+    this._user$.next(u);
+  }
+
+  setToken(token: string | null): void {
+    if (!token) {
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+      } catch {}
+      return;
+    }
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+    } catch {}
+  }
+
   getToken(): string | null {
-    return this._token$.value;
-  }
+    const direct = localStorage.getItem(TOKEN_KEY);
+    if (direct && direct.trim()) return direct.trim();
 
-  get user(): AuthUser | null {
-    return this._user$.value;
-  }
-
-  async login(email: string, password: string) {
-    const url = `${API_CONFIG.baseUrl}/auth/login`;
-
-    const res = await firstValueFrom(
-      this.http.post<ApiOk<{ token: string; user: AuthUser }> | ApiFail>(url, { email, password })
-    );
-
-    if (!res || (res as any).ok !== true) {
-      throw new Error((res as ApiFail)?.error?.message || 'Login failed');
+    // migración silenciosa desde keys viejas
+    for (const k of LEGACY_TOKEN_KEYS) {
+      const v = localStorage.getItem(k);
+      if (v && v.trim()) {
+        try {
+          localStorage.setItem(TOKEN_KEY, v.trim());
+        } catch {}
+        return v.trim();
+      }
     }
 
-    const { token, user } = (res as ApiOk<{ token: string; user: AuthUser }>).data;
-    this.setSession(token, user);
-    return user;
+    return null;
   }
 
-  async loadMe() {
-    const url = `${API_CONFIG.baseUrl}/auth/me`;
-
-    const res = await firstValueFrom(
-      this.http.get<ApiOk<AuthUser> | ApiFail>(url)
-    );
-
-    if (!res || (res as any).ok !== true) {
-      throw new Error((res as ApiFail)?.error?.message || 'Me failed');
-    }
-
-    const user = (res as ApiOk<AuthUser>).data;
-    // deja token igual, solo actualiza user
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    this._user$.next(user);
-    return user;
-  }
-
-  logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    this._token$.next(null);
+  clearSession(): void {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {}
+    try {
+      localStorage.removeItem(USER_KEY);
+    } catch {}
     this._user$.next(null);
   }
 
-  private setSession(token: string, user: AuthUser) {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    this._token$.next(token);
-    this._user$.next(user);
+  // ============================================================
+  // Compat getters usados en páginas
+  // ============================================================
+  get currentUserValue(): AnyUser | null {
+    return this._user$.value;
   }
 
-  private getStoredToken(): string | null {
-    try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+  getUser(): AnyUser | null {
+    return this._user$.value;
   }
 
-  private getStoredUser(): AuthUser | null {
-    try {
-      const raw = localStorage.getItem(USER_KEY);
-      return raw ? (JSON.parse(raw) as AuthUser) : null;
-    } catch { return null; }
+  getRole(): string {
+    const u = this._user$.value;
+    return String(u?.rol ?? u?.role ?? u?.user?.rol ?? u?.user?.role ?? '').trim();
+  }
+
+  getUserRole(): string {
+    return this.getRole();
+  }
+
+  // algunos componentes leen auth.userRole / auth.role
+  get userRole(): string {
+    return this.getRole();
+  }
+
+  get role(): string {
+    return this.getRole();
+  }
+
+  isLoggedIn(): boolean {
+    return !!this.getToken();
+  }
+
+  // ============================================================
+  // Auth API
+  // ✅ FIX: soporta login(email, password) (legacy) y login({email,password})
+  // ============================================================
+  async login(email: string, password: string): Promise<any>;
+  async login(payload: { email: string; password: string }): Promise<any>;
+  async login(a: any, b?: any): Promise<any> {
+    const payload =
+      typeof a === 'string'
+        ? { email: String(a), password: String(b ?? '') }
+        : { email: String(a?.email ?? ''), password: String(a?.password ?? '') };
+
+    const url = `${API_CONFIG.baseUrl}/auth/login`;
+
+    const res = await firstValueFrom(
+      this.http.post<ApiResponse<any>>(url, payload).pipe(map((x) => unwrapApi<any>(x)))
+    );
+
+    // Intento flexible (token en diferentes keys)
+    const token =
+      res?.token ??
+      res?.accessToken ??
+      res?.access_token ??
+      res?.jwt ??
+      res?.data?.token ??
+      null;
+
+    const user =
+      res?.user ??
+      res?.data?.user ??
+      res?.profile ??
+      res?.data?.profile ??
+      null;
+
+    if (token) this.setToken(String(token));
+    if (user) this.saveUser(user);
+
+    return res;
+  }
+
+  async register(payload: any): Promise<any> {
+    const url = `${API_CONFIG.baseUrl}/auth/register`;
+
+    const res = await firstValueFrom(
+      this.http.post<ApiResponse<any>>(url, payload).pipe(map((x) => unwrapApi<any>(x)))
+    );
+
+    const token =
+      res?.token ??
+      res?.accessToken ??
+      res?.access_token ??
+      res?.jwt ??
+      res?.data?.token ??
+      null;
+
+    const user =
+      res?.user ??
+      res?.data?.user ??
+      res?.profile ??
+      res?.data?.profile ??
+      null;
+
+    if (token) this.setToken(String(token));
+    if (user) this.saveUser(user);
+
+    return res;
+  }
+
+  // Para actualizar user (ej: settings, perfil)
+  updateUser(partial: any): void {
+    const current = this._user$.value || {};
+    const next = { ...current, ...partial };
+    this.saveUser(next);
   }
 }

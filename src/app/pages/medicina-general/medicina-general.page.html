@@ -1,156 +1,1019 @@
 <!-- src/app/pages/medicina-general/medicina-general.page.html -->
-<section #pageRoot class="svc-page">
-  <!-- Header -->
-  <header class="svc-hero">
-    <div class="svc-hero__top">
-      <div class="svc-hero__title">
-        <h1 class="h1">
-          {{ category?.name || 'Medicina General' }}
-        </h1>
-        <p class="sub" *ngIf="category?.description">
-          {{ category?.description }}
-        </p>
+<!-- ============================================================
+     SERVIMEL — Medicina General (Extravagante)
+     UI: Holographic Glass + Neon + "Bio-lab"
+     ✅ Acorde al TS (MedicinaGeneralPage)
+============================================================ -->
+
+<div class="mg-lab">
+  <div class="mg-bg"></div>
+  <div class="mg-noise"></div>
+  <div class="mg-glow-orbit"></div>
+
+  <!-- TOP BAR -->
+  <header class="mg-top">
+    <div class="mg-top__left">
+      <div class="mg-brand">
+        <div class="mg-brand__sigil" aria-hidden="true"></div>
+        <div class="mg-brand__text">
+          <div class="mg-kicker">SERVIMEL / SALUD</div>
+          <h1 class="mg-title">Medicina General</h1>
+          <p class="mg-sub">Historia clínica viva • Gestión médica • Evolución</p>
+        </div>
       </div>
 
-      <div class="svc-hero__meta">
-        <span class="chip">
-          {{ items.length }} ítems
+      <div class="mg-status">
+        <span class="pill" [class.pill--ok]="isMedico" [class.pill--no]="!isMedico">
+          {{ isMedico ? 'Rol médico habilitado' : 'Acceso restringido' }}
         </span>
-        <span class="chip chip--soft" *ngIf="searching">
-          Buscando…
+
+        <span class="pill pill--ghost" *ngIf="record?.updatedAt as updatedAt">
+          Última actualización: {{ updatedAt | date:'dd/MM/yyyy HH:mm' }}
+        </span>
+
+        <span class="pill pill--saving" *ngIf="saving">
+          Guardando...
         </span>
       </div>
     </div>
 
-    <!-- Search -->
-    <div class="svc-search" role="search" aria-label="Buscar en Medicina General">
-      <div class="svc-search__input">
-        <span class="svc-search__icon" aria-hidden="true">⌕</span>
-
-        <input
-          type="search"
-          name="q"
-          placeholder="Buscar procedimientos, recomendaciones, notas…"
-          [(ngModel)]="q"
-          (ngModelChange)="onSearchChange($event)"
-          autocomplete="off"
-          spellcheck="false"
-          aria-label="Buscar"
-        />
+    <div class="mg-top__right">
+      <div class="mg-quick">
+        <div
+          class="mg-quick__chip"
+          [class.risk-high]="riskLevel==='ALTO'"
+          [class.risk-mid]="riskLevel==='MEDIO'"
+          [class.risk-low]="riskLevel==='BAJO'">
+          <span class="dot"></span>
+          Riesgo: <b>{{ riskLevel }}</b>
+        </div>
 
         <button
-          class="svc-search__clear"
+          class="neo-btn"
           type="button"
-          (click)="clearSearch()"
-          [disabled]="!q"
-          aria-label="Limpiar búsqueda"
-        >
-          ✕
+          [disabled]="!isMedico || !record"
+          (click)="openModal('header')">
+          ✨ Editar Ficha
         </button>
-      </div>
-
-      <div class="svc-search__hint">
-        <span *ngIf="q && q.trim().length < 2">Escribí al menos 2 caracteres para buscar en servidor.</span>
-        <span *ngIf="!q">Tip: podés buscar por título o contenido.</span>
       </div>
     </div>
   </header>
 
-  <!-- States -->
-  <div class="svc-state" *ngIf="loading" aria-busy="true" aria-live="polite">
-    <div class="skeleton">
-      <div class="sk sk--t"></div>
-      <div class="sk sk--l"></div>
-      <div class="sk sk--l"></div>
-      <div class="sk sk--l"></div>
-    </div>
-  </div>
+  <div class="mg-main">
+    <!-- LEFT: RESIDENTES -->
+    <aside class="mg-left">
+      <div class="mg-left__head">
+        <h2 class="mg-h2">Residentes</h2>
 
-  <div class="svc-state svc-state--error" *ngIf="!loading && error" role="alert">
-    <div class="svc-state__title">No se pudo cargar</div>
-    <div class="svc-state__msg">{{ error }}</div>
-    <button class="btn" type="button" (click)="loadBase()">Reintentar</button>
-  </div>
-
-  <div class="svc-state svc-state--empty" *ngIf="!loading && !error && items.length === 0">
-    <div class="svc-state__title">Sin resultados</div>
-    <div class="svc-state__msg">
-      Probá con otro término de búsqueda o limpiá el filtro.
-    </div>
-    <button class="btn" type="button" (click)="clearSearch()" [disabled]="!q">Limpiar</button>
-  </div>
-
-  <!-- List -->
-  <div class="svc-grid" *ngIf="!loading && !error && items.length > 0">
-    <article
-      class="svc-card"
-      *ngFor="let it of items; trackBy: trackById"
-      (click)="openItem(it)"
-      (keydown.enter)="openItem(it)"
-      tabindex="0"
-      role="button"
-      [attr.aria-label]="'Abrir: ' + (it.title || 'Ítem')"
-    >
-      <div class="svc-card__head">
-        <h3 class="svc-card__title">{{ it.title }}</h3>
-
-        <!-- ✅ FIX: is_active boolean -->
-        <span class="svc-card__badge" *ngIf="it.is_active === false">Inactivo</span>
+        <div class="mg-search">
+          <input
+            class="mg-input"
+            type="text"
+            placeholder="Buscar por nombre o habitación..."
+            [value]="searchTerm"
+            (input)="onSearch(($any($event.target)).value)"
+          />
+          <span class="mg-search__icon" aria-hidden="true">⌁</span>
+        </div>
       </div>
 
-      <p class="svc-card__desc" *ngIf="it.description; else fallbackPreview">
-        {{ it.description }}
-      </p>
-
-      <ng-template #fallbackPreview>
-        <p class="svc-card__desc" *ngIf="it.content">
-          {{ it.content | slice:0:180 }}
-          <span *ngIf="(it.content?.length || 0) > 180">…</span>
-        </p>
-      </ng-template>
-
-      <div class="svc-card__foot">
-        <span class="svc-card__meta" *ngIf="it.updated_at || it.created_at">
-          {{ fmtDate(it.updated_at || it.created_at) }}
-        </span>
-        <span class="svc-card__cta">Ver detalle →</span>
+      <div class="mg-left__body" *ngIf="loadingResidents">
+        <div class="skel skel-card" *ngFor="let s of [1,2,3,4,5]"></div>
       </div>
-    </article>
-  </div>
 
-  <!-- Modal -->
-  <div class="modal" *ngIf="modalOpen" (click)="closeModal()" role="dialog" aria-modal="true">
-    <div class="modal__card" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <div class="modal__title">
-          <h2>{{ selected?.title }}</h2>
-          <div class="modal__sub">
-            <span *ngIf="selected?.updated_at || selected?.created_at">
-              {{ fmtDate(selected?.updated_at || selected?.created_at) }}
+      <div class="mg-left__body" *ngIf="!loadingResidents">
+        <button
+          class="res-card"
+          type="button"
+          *ngFor="let r of residentsFiltered; trackBy: trackById"
+          [class.is-active]="selectedResident?.id === r.id"
+          (click)="selectResident(r)"
+        >
+          <div class="res-card__avatar" aria-hidden="true">
+            <span class="res-card__ring"></span>
+            <span class="res-card__initial">
+              {{ (r.fullName || '?').slice(0,1).toUpperCase() }}
             </span>
+          </div>
+
+          <div class="res-card__meta">
+            <div class="res-card__name">{{ r.fullName }}</div>
+            <div class="res-card__sub">
+              <span class="tag">Hab. {{ r.room || '-' }}</span>
+              <span class="tag">{{ r.age ? (r.age + ' años') : '—' }}</span>
+            </div>
+          </div>
+
+          <div class="res-card__arrow" aria-hidden="true">›</div>
+        </button>
+
+        <div class="empty" *ngIf="residentsFiltered.length === 0">
+          No hay coincidencias.
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: WORKSPACE -->
+    <section class="mg-right">
+      <div class="mg-right__wrap" *ngIf="!selectedResident">
+        <div class="empty big">
+          Seleccioná un residente para ver su historia clínica.
+        </div>
+      </div>
+
+      <div class="mg-right__wrap" *ngIf="selectedResident">
+        <!-- HERO RESIDENTE -->
+        <div class="mg-hero" [class.loading]="loadingRecord">
+          <div class="mg-hero__bg"></div>
+
+          <div class="mg-hero__main">
+            <div class="mg-hero__id">
+              <div class="mono">RESIDENTE</div>
+              <div class="name">{{ selectedResident.fullName }}</div>
+              <div class="sub">
+                Habitación <b>{{ selectedResident.room || '-' }}</b>
+                <span class="sep">•</span>
+                Edad <b>{{ selectedResident.age || '—' }}</b>
+              </div>
+            </div>
+
+            <div class="mg-hero__badges">
+              <div class="badge">
+                <div class="badge__k">Alergias</div>
+                <div class="badge__v">
+                  <ng-container *ngIf="allergies.length; else noAll">
+                    <span class="chip" *ngFor="let a of allergies">{{ a }}</span>
+                  </ng-container>
+                  <ng-template #noAll>
+                    <span class="muted">Sin registrar</span>
+                  </ng-template>
+                </div>
+              </div>
+
+              <div class="badge">
+                <div class="badge__k">Crónicos</div>
+                <div class="badge__v">
+                  <ng-container *ngIf="chronicConditions.length; else noChr">
+                    <span class="chip chip--alt" *ngFor="let c of chronicConditions">{{ c }}</span>
+                  </ng-container>
+                  <ng-template #noChr>
+                    <span class="muted">Sin registrar</span>
+                  </ng-template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mg-hero__foot">
+            <div class="mg-tabs">
+              <button
+                class="mg-tab"
+                type="button"
+                *ngFor="let t of tabs"
+                [class.is-active]="activeTab === t.key"
+                (click)="setTab(t.key)"
+              >
+                <span class="mg-tab__i">{{ t.icon }}</span>
+                <span class="mg-tab__l">{{ t.label }}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <button class="modal__close" type="button" (click)="closeModal()" aria-label="Cerrar">
-          ✕
-        </button>
+        <!-- LOADING RECORD -->
+        <div class="mg-panel" *ngIf="loadingRecord">
+          <div class="skel skel-line w60"></div>
+          <div class="skel skel-line w90"></div>
+          <div class="skel skel-line w75"></div>
+          <div class="skel skel-card tall"></div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="mg-panel" *ngIf="!loadingRecord && record">
+          <!-- TAB: FICHA -->
+          <div *ngIf="activeTab==='ficha'">
+            <div class="panel-head">
+              <h2 class="panel-title">Ficha clínica</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('header')">
+                  Editar ficha
+                </button>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="card holo">
+                <div class="card__title">Identificación clínica</div>
+                <div class="kv">
+                  <div class="kv__row">
+                    <div class="k">Grupo</div>
+                    <div class="v">{{ record.header.bloodGroup || '—' }}</div>
+                  </div>
+                  <div class="kv__row">
+                    <div class="k">RH</div>
+                    <div class="v">{{ record.header.rh || '—' }}</div>
+                  </div>
+                  <div class="kv__row">
+                    <div class="k">Peso</div>
+                    <div class="v">{{ record.header.weightKg != null ? (record.header.weightKg + ' kg') : '—' }}</div>
+                  </div>
+                  <div class="kv__row">
+                    <div class="k">Altura</div>
+                    <div class="v">{{ record.header.heightCm != null ? (record.header.heightCm + ' cm') : '—' }}</div>
+                  </div>
+                  <div class="kv__row">
+                    <div class="k">IMC</div>
+                    <div class="v">{{ record.header.bmi ?? '—' }}</div>
+                  </div>
+                  <div class="kv__row">
+                    <div class="k">Riesgo</div>
+                    <div class="v">
+                      <span
+                        class="pill"
+                        [class.pill--high]="record.header.riskLevel==='ALTO'"
+                        [class.pill--mid]="record.header.riskLevel==='MEDIO'"
+                        [class.pill--low]="record.header.riskLevel==='BAJO'">
+                        {{ record.header.riskLevel || '—' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card holo">
+                <div class="card__title">Resumen médico</div>
+
+                <div class="kv">
+                  <div class="kv__row">
+                    <div class="k">Médico tratante</div>
+                    <div class="v">{{ record.header.treatingDoctor || '—' }}</div>
+                  </div>
+                  <div class="kv__row">
+                    <div class="k">Última evaluación</div>
+                    <div class="v">
+                      {{ record.header.lastMedicalEval ? (record.header.lastMedicalEval | date:'dd/MM/yyyy') : '—' }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="block">
+                  <div class="label">Diagnósticos activos (texto)</div>
+                  <div class="text">
+                    {{ record.header.activeDiagnosesSummary || '—' }}
+                  </div>
+                </div>
+
+                <div class="block">
+                  <div class="label">Notas generales</div>
+                  <div class="text">
+                    {{ record.header.generalNotes || '—' }}
+                  </div>
+                </div>
+
+                <div class="hint">
+                  <b>EDITAR RESIDENTE</b> (próximo): acá va el acceso a edición completa del residente y módulos cruzados.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: DIAGNÓSTICOS -->
+          <div *ngIf="activeTab==='diagnosticos'">
+            <div class="panel-head">
+              <h2 class="panel-title">Diagnósticos</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('diagnosis')">
+                  + Nuevo
+                </button>
+              </div>
+            </div>
+
+            <div class="table card holo">
+              <div class="thead">
+                <div>CIE-10</div>
+                <div>Diagnóstico</div>
+                <div>Fecha</div>
+                <div>Estado</div>
+                <div class="right">Acciones</div>
+              </div>
+
+              <div class="trow" *ngFor="let d of record.diagnoses; trackBy: trackById">
+                <div class="mono">{{ d.cie10 || '—' }}</div>
+                <div class="strong">{{ d.name }}</div>
+                <div>{{ d.date ? (d.date | date:'dd/MM/yyyy') : '—' }}</div>
+                <div>
+                  <span
+                    class="pill pill--ghost"
+                    [class.pill--high]="d.status==='ACTIVO'"
+                    [class.pill--mid]="d.status==='CONTROLADO'"
+                    [class.pill--low]="d.status==='RESUELTO'">
+                    {{ d.status }}
+                  </span>
+                </div>
+                <div class="right">
+                  <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('diagnosis', d.id)">Editar</button>
+                  <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteDiagnosis(d.id)">Borrar</button>
+                </div>
+
+                <div class="trow__note" *ngIf="d.notes">
+                  <span class="label">Notas:</span> {{ d.notes }}
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.diagnoses.length===0">
+                Sin diagnósticos registrados.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: MEDICACIÓN -->
+          <div *ngIf="activeTab==='medicacion'">
+            <div class="panel-head">
+              <h2 class="panel-title">Medicación</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('med')">
+                  + Indicar medicación
+                </button>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card holo" *ngFor="let m of record.meds; trackBy: trackById">
+                <div class="card-row">
+                  <div>
+                    <div class="big">{{ m.name }}</div>
+                    <div class="meta">
+                      <span class="tag">Dosis: <b>{{ m.dose || '—' }}</b></span>
+                      <span class="tag">Horario: <b>{{ m.schedule || '—' }}</b></span>
+                      <span class="tag">Vía: <b>{{ m.route || '—' }}</b></span>
+                    </div>
+                  </div>
+
+                  <div class="actions">
+                    <span class="pill pill--ghost">{{ m.status || 'ACTIVO' }}</span>
+                    <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('med', m.id)">Editar</button>
+                    <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteMedication(m.id)">Borrar</button>
+                  </div>
+                </div>
+
+                <div class="subgrid">
+                  <div class="kv2">
+                    <div class="k">Desde</div>
+                    <div class="v">{{ m.startDate ? (m.startDate | date:'dd/MM/yyyy') : '—' }}</div>
+                  </div>
+                  <div class="kv2">
+                    <div class="k">Hasta</div>
+                    <div class="v">{{ m.endDate ? (m.endDate | date:'dd/MM/yyyy') : '—' }}</div>
+                  </div>
+                  <div class="kv2">
+                    <div class="k">Indicó</div>
+                    <div class="v">{{ m.prescribedBy || '—' }}</div>
+                  </div>
+                </div>
+
+                <div class="note" *ngIf="m.instructions">
+                  <span class="label">Indicaciones:</span> {{ m.instructions }}
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.meds.length===0">
+                Sin medicación registrada.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: CONTROLES -->
+          <div *ngIf="activeTab==='controles'">
+            <div class="panel-head">
+              <h2 class="panel-title">Controles médicos</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('control')">
+                  + Nuevo control
+                </button>
+              </div>
+            </div>
+
+            <div class="table card holo">
+              <div class="thead">
+                <div>Fecha</div>
+                <div>Tipo</div>
+                <div>Motivo</div>
+                <div>Conclusión</div>
+                <div class="right">Acciones</div>
+              </div>
+
+              <div class="trow" *ngFor="let c of record.controls; trackBy: trackById">
+                <div>{{ c.date | date:'dd/MM/yyyy' }}</div>
+                <div><span class="pill pill--ghost">{{ c.type }}</span></div>
+                <div>{{ c.reason || '—' }}</div>
+                <div>{{ c.conclusion || '—' }}</div>
+                <div class="right">
+                  <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('control', c.id)">Editar</button>
+                  <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteControl(c.id)">Borrar</button>
+                </div>
+
+                <div class="trow__note" *ngIf="c.findings || c.nextControl">
+                  <div *ngIf="c.findings"><span class="label">Hallazgos:</span> {{ c.findings }}</div>
+                  <div *ngIf="c.nextControl"><span class="label">Próximo:</span> {{ c.nextControl | date:'dd/MM/yyyy' }}</div>
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.controls.length===0">
+                Sin controles registrados.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: EXÁMENES -->
+          <div *ngIf="activeTab==='examenes'">
+            <div class="panel-head">
+              <h2 class="panel-title">Estudios / Exámenes</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('exam')">
+                  + Nuevo examen
+                </button>
+              </div>
+            </div>
+
+            <div class="table card holo">
+              <div class="thead">
+                <div>Fecha</div>
+                <div>Tipo</div>
+                <div>Resultado</div>
+                <div>Archivo</div>
+                <div class="right">Acciones</div>
+              </div>
+
+              <div class="trow" *ngFor="let e of record.exams; trackBy: trackById">
+                <div>{{ e.date | date:'dd/MM/yyyy' }}</div>
+                <div class="strong">{{ e.type }}</div>
+                <div>{{ e.result || '—' }}</div>
+                <div class="mono">{{ e.fileName || '—' }}</div>
+                <div class="right">
+                  <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('exam', e.id)">Editar</button>
+                  <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteExam(e.id)">Borrar</button>
+                </div>
+
+                <div class="trow__note" *ngIf="e.notes">
+                  <span class="label">Notas:</span> {{ e.notes }}
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.exams.length===0">
+                Sin exámenes registrados.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: EVOLUCIÓN -->
+          <div *ngIf="activeTab==='evolucion'">
+            <div class="panel-head">
+              <h2 class="panel-title">Evolución médica</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('evolution')">
+                  + Nueva nota
+                </button>
+              </div>
+            </div>
+
+            <div class="timeline">
+              <div class="tl-item" *ngFor="let n of record.evolution; trackBy: trackById">
+                <div class="tl-dot"></div>
+                <div class="tl-card card holo">
+                  <div class="tl-top">
+                    <div class="tl-meta">
+                      <span class="pill pill--ghost">{{ n.type }}</span>
+                      <span class="mono">{{ n.date | date:'dd/MM/yyyy' }}</span>
+                      <span class="sep">•</span>
+                      <span class="muted">{{ n.professional || '—' }}</span>
+                    </div>
+
+                    <div class="actions">
+                      <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('evolution', n.id)">Editar</button>
+                      <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteEvolution(n.id)">Borrar</button>
+                    </div>
+                  </div>
+
+                  <div class="tl-note">
+                    {{ n.note }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.evolution.length===0">
+                Sin notas de evolución.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: DOCUMENTOS -->
+          <div *ngIf="activeTab==='documentos'">
+            <div class="panel-head">
+              <h2 class="panel-title">Documentos</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('document')">
+                  + Nuevo documento
+                </button>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card holo" *ngFor="let d of record.documents; trackBy: trackById">
+                <div class="card-row">
+                  <div>
+                    <div class="big">{{ d.type }}</div>
+                    <div class="meta">
+                      <span class="tag">{{ d.date | date:'dd/MM/yyyy' }}</span>
+                      <span class="tag mono">{{ d.fileName }}</span>
+                    </div>
+                  </div>
+
+                  <div class="actions">
+                    <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('document', d.id)">Editar</button>
+                    <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteDocument(d.id)">Borrar</button>
+                  </div>
+                </div>
+
+                <div class="note" *ngIf="d.notes">
+                  <span class="label">Notas:</span> {{ d.notes }}
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.documents.length===0">
+                Sin documentos.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: ALERTAS -->
+          <div *ngIf="activeTab==='alertas'">
+            <div class="panel-head">
+              <h2 class="panel-title">Alertas clínicas</h2>
+              <div class="panel-actions">
+                <button class="neo-btn" type="button" [disabled]="!isMedico" (click)="openModal('alert')">
+                  + Nueva alerta
+                </button>
+              </div>
+            </div>
+
+            <div class="table card holo">
+              <div class="thead">
+                <div>Fecha</div>
+                <div>Tipo</div>
+                <div>Detalle</div>
+                <div>Nivel</div>
+                <div>Estado</div>
+                <div class="right">Acciones</div>
+              </div>
+
+              <div class="trow" *ngFor="let a of record.alerts; trackBy: trackById">
+                <div>{{ a.date | date:'dd/MM/yyyy' }}</div>
+                <div class="strong">{{ a.kind }}</div>
+                <div>{{ a.detail || '—' }}</div>
+                <div>
+                  <span
+                    class="pill"
+                    [class.pill--high]="a.level==='CRIT'"
+                    [class.pill--mid]="a.level==='WARN'"
+                    [class.pill--low]="a.level==='INFO'">
+                    {{ a.level || 'WARN' }}
+                  </span>
+                </div>
+                <div>
+                  <span class="pill pill--ghost" [class.done]="a.resolved">
+                    {{ a.resolved ? 'Resuelta' : 'Pendiente' }}
+                  </span>
+                </div>
+                <div class="right">
+                  <button class="mini" type="button" [disabled]="!isMedico" (click)="toggleAlertResolved(a.id)">
+                    {{ a.resolved ? 'Reabrir' : 'Resolver' }}
+                  </button>
+                  <button class="mini" type="button" [disabled]="!isMedico" (click)="openModal('alert', a.id)">Editar</button>
+                  <button class="mini danger" type="button" [disabled]="!isMedico" (click)="deleteAlert(a.id)">Borrar</button>
+                </div>
+              </div>
+
+              <div class="empty" *ngIf="record.alerts.length===0">
+                Sin alertas.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECORD NULL -->
+        <div class="mg-panel" *ngIf="!loadingRecord && !record">
+          <div class="empty big">
+            No se pudo cargar el registro médico.
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================================================
+       MODAL OVERLAY (reusable)
+       ✅ Acorde a: modal, editingId, forms, save*(), closeModal()
+  ============================================================ -->
+  <div class="overlay" *ngIf="modal">
+    <div class="overlay__backdrop" (click)="closeModal()"></div>
+
+    <div class="modal">
+      <div class="modal__head">
+        <div class="modal__title">
+          <span class="sigil" aria-hidden="true"></span>
+
+          <ng-container [ngSwitch]="modal">
+            <span *ngSwitchCase="'header'">Editar Ficha Clínica</span>
+            <span *ngSwitchCase="'diagnosis'">{{ editingId ? 'Editar Diagnóstico' : 'Nuevo Diagnóstico' }}</span>
+            <span *ngSwitchCase="'med'">{{ editingId ? 'Editar Medicación' : 'Indicar Medicación' }}</span>
+            <span *ngSwitchCase="'control'">{{ editingId ? 'Editar Control' : 'Nuevo Control' }}</span>
+            <span *ngSwitchCase="'exam'">{{ editingId ? 'Editar Examen' : 'Nuevo Examen' }}</span>
+            <span *ngSwitchCase="'evolution'">{{ editingId ? 'Editar Evolución' : 'Nueva Evolución' }}</span>
+            <span *ngSwitchCase="'document'">{{ editingId ? 'Editar Documento' : 'Nuevo Documento' }}</span>
+            <span *ngSwitchCase="'alert'">{{ editingId ? 'Editar Alerta' : 'Nueva Alerta' }}</span>
+          </ng-container>
+        </div>
+
+        <button class="x" type="button" (click)="closeModal()" aria-label="Cerrar">✕</button>
       </div>
 
       <div class="modal__body">
-        <p class="modal__desc" *ngIf="selected?.description">{{ selected?.description }}</p>
+        <!-- HEADER FORM -->
+        <form class="form" *ngIf="modal==='header'" [formGroup]="headerForm" (ngSubmit)="saveHeader()">
+          <div class="form-grid">
+            <div class="field">
+              <label>Grupo sanguíneo</label>
+              <input class="mg-input" formControlName="bloodGroup" placeholder="A / B / AB / O" />
+            </div>
 
-        <div class="modal__content" *ngIf="selected?.content">
-          <pre class="content-pre">{{ selected?.content }}</pre>
-        </div>
+            <div class="field">
+              <label>RH</label>
+              <select class="mg-input" formControlName="rh">
+                <option value="+">+</option>
+                <option value="-">-</option>
+              </select>
+            </div>
 
-        <div class="modal__empty" *ngIf="!selected?.content && !selected?.description">
-          Sin contenido para mostrar.
-        </div>
-      </div>
+            <div class="field">
+              <label>Peso (kg)</label>
+              <input class="mg-input" type="number" formControlName="weightKg" placeholder="Ej: 70" />
+            </div>
 
-      <div class="modal__footer">
-        <button class="btn btn--ghost" type="button" (click)="closeModal()">Cerrar</button>
+            <div class="field">
+              <label>Altura (cm)</label>
+              <input class="mg-input" type="number" formControlName="heightCm" placeholder="Ej: 165" />
+            </div>
+
+            <div class="field">
+              <label>IMC</label>
+              <input class="mg-input" type="number" formControlName="bmi" [readOnly]="true" />
+            </div>
+
+            <div class="field">
+              <label>Riesgo clínico</label>
+              <select class="mg-input" formControlName="riskLevel">
+                <option value="ALTO">ALTO</option>
+                <option value="MEDIO">MEDIO</option>
+                <option value="BAJO">BAJO</option>
+              </select>
+            </div>
+
+            <div class="field span2">
+              <label>Alergias (separadas por coma)</label>
+              <input class="mg-input" formControlName="allergiesText" placeholder="Ej: penicilina, polvo, látex" />
+            </div>
+
+            <div class="field span2">
+              <label>Crónicos (separados por coma)</label>
+              <input class="mg-input" formControlName="chronicText" placeholder="Ej: HTA, DM2, EPOC" />
+            </div>
+
+            <div class="field span2">
+              <label>Diagnósticos activos (texto)</label>
+              <input class="mg-input" formControlName="activeDiagnosesSummary" placeholder="Resumen breve..." />
+            </div>
+
+            <div class="field span2">
+              <label>Médico tratante</label>
+              <input class="mg-input" formControlName="treatingDoctor" placeholder="Nombre del médico..." />
+            </div>
+
+            <div class="field">
+              <label>Última evaluación</label>
+              <input class="mg-input" type="date" formControlName="lastMedicalEval" />
+            </div>
+
+            <div class="field span2">
+              <label>Notas generales</label>
+              <textarea
+                class="mg-input mg-textarea"
+                rows="4"
+                formControlName="generalNotes"
+                placeholder="Notas clínicas generales..."></textarea>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- DIAGNOSIS FORM -->
+        <form class="form" *ngIf="modal==='diagnosis'" [formGroup]="diagnosisForm" (ngSubmit)="saveDiagnosis()">
+          <div class="form-grid">
+            <div class="field">
+              <label>CIE-10</label>
+              <input class="mg-input" formControlName="cie10" placeholder="Ej: I10" />
+            </div>
+
+            <div class="field span2">
+              <label>Diagnóstico *</label>
+              <input class="mg-input" formControlName="name" placeholder="Ej: Hipertensión arterial" />
+              <div class="error" *ngIf="diagnosisForm.get('name')?.touched && diagnosisForm.get('name')?.invalid">
+                Ingresá un diagnóstico válido.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Fecha</label>
+              <input class="mg-input" type="date" formControlName="date" />
+            </div>
+
+            <div class="field">
+              <label>Estado</label>
+              <select class="mg-input" formControlName="status">
+                <option value="ACTIVO">ACTIVO</option>
+                <option value="CONTROLADO">CONTROLADO</option>
+                <option value="RESUELTO">RESUELTO</option>
+              </select>
+            </div>
+
+            <div class="field span2">
+              <label>Notas</label>
+              <textarea class="mg-input mg-textarea" rows="3" formControlName="notes" placeholder="Detalle clínico..."></textarea>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- MED FORM -->
+        <form class="form" *ngIf="modal==='med'" [formGroup]="medForm" (ngSubmit)="saveMedication()">
+          <div class="form-grid">
+            <div class="field span2">
+              <label>Medicamento *</label>
+              <input class="mg-input" formControlName="name" placeholder="Ej: Enalapril" />
+              <div class="error" *ngIf="medForm.get('name')?.touched && medForm.get('name')?.invalid">
+                Ingresá un medicamento válido.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Dosis</label>
+              <input class="mg-input" formControlName="dose" placeholder="Ej: 10mg" />
+            </div>
+
+            <div class="field">
+              <label>Horario</label>
+              <input class="mg-input" formControlName="schedule" placeholder="Ej: 08:00 / 20:00" />
+            </div>
+
+            <div class="field">
+              <label>Vía</label>
+              <input class="mg-input" formControlName="route" placeholder="VO / IM / EV..." />
+            </div>
+
+            <div class="field">
+              <label>Desde</label>
+              <input class="mg-input" type="date" formControlName="startDate" />
+            </div>
+
+            <div class="field">
+              <label>Hasta</label>
+              <input class="mg-input" type="date" formControlName="endDate" />
+            </div>
+
+            <div class="field">
+              <label>Estado</label>
+              <select class="mg-input" formControlName="status">
+                <option value="ACTIVO">ACTIVO</option>
+                <option value="SUSPENDIDO">SUSPENDIDO</option>
+                <option value="FINALIZADO">FINALIZADO</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Prescrito por</label>
+              <input class="mg-input" formControlName="prescribedBy" placeholder="Nombre profesional" />
+            </div>
+
+            <div class="field span2">
+              <label>Indicaciones</label>
+              <textarea class="mg-input mg-textarea" rows="3" formControlName="instructions"></textarea>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- CONTROL FORM -->
+        <form class="form" *ngIf="modal==='control'" [formGroup]="controlForm" (ngSubmit)="saveControl()">
+          <div class="form-grid">
+            <div class="field">
+              <label>Fecha *</label>
+              <input class="mg-input" type="date" formControlName="date" />
+            </div>
+
+            <div class="field">
+              <label>Tipo *</label>
+              <select class="mg-input" formControlName="type">
+                <option value="RUTINA">RUTINA</option>
+                <option value="URGENCIA">URGENCIA</option>
+                <option value="SEGUIMIENTO">SEGUIMIENTO</option>
+              </select>
+            </div>
+
+            <div class="field span2">
+              <label>Motivo</label>
+              <input class="mg-input" formControlName="reason" />
+            </div>
+
+            <div class="field span2">
+              <label>Hallazgos</label>
+              <textarea class="mg-input mg-textarea" rows="3" formControlName="findings"></textarea>
+            </div>
+
+            <div class="field span2">
+              <label>Conclusión</label>
+              <textarea class="mg-input mg-textarea" rows="2" formControlName="conclusion"></textarea>
+            </div>
+
+            <div class="field">
+              <label>Próximo control</label>
+              <input class="mg-input" type="date" formControlName="nextControl" />
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- EXAM FORM -->
+        <form class="form" *ngIf="modal==='exam'" [formGroup]="examForm" (ngSubmit)="saveExam()">
+          <div class="form-grid">
+            <div class="field">
+              <label>Fecha *</label>
+              <input class="mg-input" type="date" formControlName="date" />
+            </div>
+
+            <div class="field span2">
+              <label>Tipo *</label>
+              <input class="mg-input" formControlName="type" placeholder="Laboratorio / Rx / ECG..." />
+            </div>
+
+            <div class="field span2">
+              <label>Resultado</label>
+              <input class="mg-input" formControlName="result" placeholder="Resumen del resultado..." />
+            </div>
+
+            <div class="field span2">
+              <label>Archivo (nombre)</label>
+              <input class="mg-input" formControlName="fileName" placeholder="ej: hemograma_ene.pdf" />
+            </div>
+
+            <div class="field span2">
+              <label>Notas</label>
+              <textarea class="mg-input mg-textarea" rows="3" formControlName="notes"></textarea>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- EVOLUTION FORM -->
+        <form class="form" *ngIf="modal==='evolution'" [formGroup]="evolutionForm" (ngSubmit)="saveEvolution()">
+          <div class="form-grid">
+            <div class="field">
+              <label>Fecha *</label>
+              <input class="mg-input" type="date" formControlName="date" />
+            </div>
+
+            <div class="field">
+              <label>Tipo *</label>
+              <select class="mg-input" formControlName="type">
+                <option value="RUTINA">RUTINA</option>
+                <option value="SEGUIMIENTO">SEGUIMIENTO</option>
+                <option value="URGENCIA">URGENCIA</option>
+              </select>
+            </div>
+
+            <div class="field span2">
+              <label>Profesional</label>
+              <input class="mg-input" formControlName="professional" placeholder="Nombre..." />
+            </div>
+
+            <div class="field span2">
+              <label>Nota clínica *</label>
+              <textarea class="mg-input mg-textarea" rows="5" formControlName="note" placeholder="Redacción clínica..."></textarea>
+              <div class="error" *ngIf="evolutionForm.get('note')?.touched && evolutionForm.get('note')?.invalid">
+                Ingresá una nota válida.
+              </div>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- DOCUMENT FORM -->
+        <form class="form" *ngIf="modal==='document'" [formGroup]="documentForm" (ngSubmit)="saveDocument()">
+          <div class="form-grid">
+            <div class="field">
+              <label>Fecha *</label>
+              <input class="mg-input" type="date" formControlName="date" />
+            </div>
+
+            <div class="field span2">
+              <label>Tipo *</label>
+              <input class="mg-input" formControlName="type" placeholder="Receta / Epicrisis..." />
+            </div>
+
+            <div class="field span2">
+              <label>Archivo *</label>
+              <input class="mg-input" formControlName="fileName" placeholder="ej: receta_ene.pdf" />
+            </div>
+
+            <div class="field span2">
+              <label>Notas</label>
+              <textarea class="mg-input mg-textarea" rows="3" formControlName="notes"></textarea>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
+
+        <!-- ALERT FORM -->
+        <form class="form" *ngIf="modal==='alert'" [formGroup]="alertForm" (ngSubmit)="saveAlert()">
+          <div class="form-grid">
+            <div class="field">
+              <label>Fecha *</label>
+              <input class="mg-input" type="date" formControlName="date" />
+            </div>
+
+            <div class="field span2">
+              <label>Tipo *</label>
+              <input class="mg-input" formControlName="kind" placeholder="Valores fuera de rango / Interacción..." />
+            </div>
+
+            <div class="field span2">
+              <label>Detalle</label>
+              <input class="mg-input" formControlName="detail" />
+            </div>
+
+            <div class="field">
+              <label>Nivel *</label>
+              <select class="mg-input" formControlName="level">
+                <option value="INFO">INFO</option>
+                <option value="WARN">WARN</option>
+                <option value="CRIT">CRIT</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Estado</label>
+              <select
+                class="mg-input"
+                [value]="alertForm.get('resolved')?.value ? '1' : '0'"
+                (change)="alertForm.get('resolved')?.setValue(($any($event.target)).value==='1')">
+                <option value="0">Pendiente</option>
+                <option value="1">Resuelta</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal__foot">
+            <button class="neo-btn ghost" type="button" (click)="closeModal()">Cancelar</button>
+            <button class="neo-btn" type="submit" [disabled]="saving">Guardar</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
-</section>
+</div>

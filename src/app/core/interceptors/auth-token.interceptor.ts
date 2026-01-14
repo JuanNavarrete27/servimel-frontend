@@ -1,53 +1,57 @@
-// src/app/core/interceptors/auth-token.interceptor.ts
-import { inject } from '@angular/core';
-import {
-  HttpInterceptorFn,
-  HttpRequest,
-  HttpHandlerFn,
-  HttpErrorResponse
-} from '@angular/common/http';
-import { catchError, throwError } from 'rxjs';
+// F4 — src/app/core/interceptors/auth-token.interceptor.ts
+import { HttpInterceptorFn } from '@angular/common/http';
 
-import { AuthService } from '../../shared/services/auth.service';
+const TOKEN_KEY = 'servimel_token_v1';
 
-export const authTokenInterceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: HttpHandlerFn) => {
-  const auth = inject(AuthService);
+// Si venías de otras keys, migramos UNA vez para no romper sesiones viejas.
+const LEGACY_TOKEN_KEYS = [
+  'token',
+  'auth_token',
+  'access_token',
+  'jwt',
+  'servimel_token',
+  'servimelToken',
+  'servimel_token_v0',
+];
 
-  const url = req.url || '';
-  const isAuthEndpoint =
-    url.includes('/auth/login') ||
-    url.includes('/auth/register');
+function readToken(): string | null {
+  const direct = localStorage.getItem(TOKEN_KEY);
+  if (direct && direct.trim()) return direct.trim();
 
-  // ✅ TOKEN ROBUSTO: si AuthService no está hidratado en pestaña nueva,
-  // igual lo leemos directo desde localStorage.
-  const token =
-    auth.getToken?.() ||
-    (() => {
+  for (const k of LEGACY_TOKEN_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v && v.trim()) {
+      // migración silenciosa
       try {
-        const keys = ['servimel_token', 'servimel_token_v1', 'auth_token', 'token', 'jwt', 'access_token'];
-        for (const k of keys) {
-          const v = localStorage.getItem(k);
-          if (v && v.trim()) return v.trim();
-        }
+        localStorage.setItem(TOKEN_KEY, v.trim());
       } catch {}
-      return null;
-    })();
+      return v.trim();
+    }
+  }
 
-  // ✅ No pisar Authorization si ya viene seteado (por request manual)
-  const hasAuthHeader = req.headers.has('Authorization');
+  return null;
+}
 
-  const authReq =
-    !isAuthEndpoint && token && !hasAuthHeader
-      ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-      : req;
+function shouldSkip(reqUrl: string): boolean {
+  // No meter Bearer en auth/login|register (y similares si los usás)
+  return /\/auth\/(login|register)\b/i.test(reqUrl);
+}
 
-  return next(authReq).pipe(
-    catchError((err: unknown) => {
-      if (err instanceof HttpErrorResponse && err.status === 401) {
-        // ✅ opcional (NO rompo tu flujo): si querés, descomentá para limpiar token y mandar al login
-        // auth.logout?.();
-      }
-      return throwError(() => err);
-    })
-  );
+export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
+  try {
+    if (shouldSkip(req.url)) return next(req);
+
+    const token = readToken();
+    if (!token) return next(req);
+
+    const authReq = req.clone({
+      setHeaders: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return next(authReq);
+  } catch {
+    return next(req);
+  }
 };

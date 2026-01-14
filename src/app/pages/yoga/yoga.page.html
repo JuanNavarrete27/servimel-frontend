@@ -1,57 +1,487 @@
-<section class="page">
-  <header class="head">
-    <div>
-      <div class="eyebrow">Actividad</div>
-      <h1>Yoga</h1>
-      <p>Sesiones de movilidad y respiración para residentes. Mantiene el layout actual y no genera peticiones adicionales.</p>
+<!-- src/app/pages/yoga/yoga.page.html -->
+<!-- ============================================================
+     SERVIMEL — Yoga (Zen Holographic Dojo)
+     ✅ Distinto al resto: auroras + mandala + glass + zen neon
+     ✅ Manejo semanal por residente + secuencias reutilizables
+     ✅ Listo para conectar backend: /residentes y /servicios/yoga
+============================================================ -->
+
+<div class="yoga-dojo">
+  <!-- Background layers -->
+  <div class="bg-aurora"></div>
+  <div class="bg-mandala"></div>
+  <div class="bg-grain"></div>
+
+  <!-- TOP / HERO -->
+  <header class="hero">
+    <div class="hero__left">
+      <div class="badge" [attr.data-role]="role">
+        <span class="badge__dot"></span>
+        <span class="badge__role">Rol: {{ role || 'Sin rol' }}</span>
+
+        <span class="badge__edit" *ngIf="canEdit">Edición habilitada</span>
+        <span class="badge__view" *ngIf="!canEdit">Solo lectura</span>
+      </div>
+
+      <h1 class="hero__title">Yoga</h1>
+      <p class="hero__subtitle">
+        Plan semanal por residente: <b>secuencia</b>, foco, duración y notas.
+        Marcá <b>realizado</b> para seguimiento interno.
+      </p>
     </div>
 
-    <div class="head__pills">
-      <span class="pill">Respiración</span>
-      <span class="pill">Movilidad</span>
-      <span class="pill">Relajación</span>
+    <div class="hero__right">
+      <div class="weekbar">
+        <button class="btn btn--ghost" type="button" (click)="prevWeek()">
+          ← Semana
+        </button>
+
+        <div class="weekbar__center">
+          <div class="weekbar__range">{{ weekRangeLabel() }}</div>
+          <div class="weekbar__meta">
+            <span class="pill">Semana: {{ weekKey }}</span>
+            <button class="pill pill--click" type="button" (click)="goThisWeek()">
+              Ir a hoy
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn--ghost" type="button" (click)="nextWeek()">
+          Semana →
+        </button>
+      </div>
+
+      <div class="status" *ngIf="errorMsg">
+        <span class="status__dot"></span>
+        <span class="status__txt">{{ errorMsg }}</span>
+      </div>
     </div>
   </header>
 
-  <section class="panel">
-    <div class="panel__head">
-      <div>
-        <div class="eyebrow">Organización</div>
-        <h2>Secciones clave</h2>
+  <!-- LAYOUT -->
+  <main class="layout">
+    <!-- LEFT: RESIDENTES -->
+    <aside class="side">
+      <div class="side__head">
+        <div class="side__title">
+          <div class="eyebrow">Directorio</div>
+          <h2>Residentes</h2>
+        </div>
+
+        <div class="side__filters">
+          <button
+            type="button"
+            class="chip"
+            [class.chip--on]="residentFilter==='todos'"
+            (click)="residentFilter='todos'"
+          >
+            Todos
+          </button>
+          <button
+            type="button"
+            class="chip"
+            [class.chip--on]="residentFilter==='con-plan'"
+            (click)="residentFilter='con-plan'"
+          >
+            Con plan
+          </button>
+          <button
+            type="button"
+            class="chip"
+            [class.chip--on]="residentFilter==='sin-plan'"
+            (click)="residentFilter='sin-plan'"
+          >
+            Sin plan
+          </button>
+        </div>
       </div>
-      <span class="tag">Sin datos en vivo</span>
-    </div>
 
-    <div class="cards">
-      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
-        <div class="card__eyebrow">{{ s.title }}</div>
-        <p class="card__desc">{{ s.desc }}</p>
-        <ul>
-          <li *ngFor="let b of s.bullets">{{ b }}</li>
-        </ul>
-      </article>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel__head">
-      <div>
-        <div class="eyebrow">Seguimiento</div>
-        <h2>Estado actual</h2>
+      <div class="search">
+        <span class="search__icon">⌕</span>
+        <input
+          class="search__input"
+          type="text"
+          placeholder="Buscar por nombre / habitación / id…"
+          [(ngModel)]="search"
+        />
       </div>
-      <span class="tag tag--muted">Preparado para datos reales</span>
-    </div>
 
-    <div class="highlights">
-      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
-        <div class="highlight__label">{{ h.label }}</div>
-        <div class="highlight__detail">{{ h.detail }}</div>
+      <div class="side__list" *ngIf="!loadingResidents; else loadingResTpl">
+        <button
+          class="resident"
+          type="button"
+          *ngFor="let r of filteredResidents; trackBy: trackById"
+          (click)="selectResident(r.id)"
+          [class.resident--active]="r.id === activeResidentId"
+          [class.resident--inactive]="r.isActive === false"
+        >
+          <div class="resident__avatar" [attr.data-has]="r.avatarUrl ? 'y' : 'n'">
+            <img *ngIf="r.avatarUrl" [src]="r.avatarUrl" alt="" />
+            <span *ngIf="!r.avatarUrl">{{ (r.fullName || 'R')[0] }}</span>
+          </div>
+
+          <div class="resident__info">
+            <div class="resident__top">
+              <div class="resident__name">{{ r.fullName }}</div>
+              <div class="resident__room" *ngIf="r.roomLabel">{{ r.roomLabel }}</div>
+            </div>
+
+            <div class="resident__tags" *ngIf="r.tags?.length">
+              <span class="tag" *ngFor="let t of r.tags; trackBy: trackByIndex">{{ t }}</span>
+            </div>
+          </div>
+
+          <div class="resident__hint">
+            <span class="dot" [class.dot--on]="hasPlan(r.id)"></span>
+          </div>
+        </button>
+
+        <div class="empty" *ngIf="filteredResidents.length === 0">
+          <div class="empty__icon">🜂</div>
+          <div class="empty__title">Sin resultados</div>
+          <div class="empty__txt">Probá con otro nombre o limpiá el filtro.</div>
+        </div>
       </div>
-    </div>
 
-    <div class="empty">
-      <div class="empty__title">Sin sesiones programadas</div>
-      <div class="empty__text">Agregá sesiones reales cuando estén disponibles. La página mantiene el diseño y no muestra datos ficticios.</div>
-    </div>
-  </section>
-</section>
+      <ng-template #loadingResTpl>
+        <div class="skeleton">
+          <div class="sk sk--line"></div>
+          <div class="sk sk--line"></div>
+          <div class="sk sk--line"></div>
+          <div class="sk sk--line"></div>
+          <div class="sk sk--line"></div>
+        </div>
+      </ng-template>
+    </aside>
+
+    <!-- RIGHT: PLAN SEMANAL -->
+    <section class="stage">
+      <ng-container *ngIf="activeResident as ar; else pickResidentTpl">
+        <div class="stage__head">
+          <div class="who">
+            <div class="who__ring"></div>
+            <div class="who__name">
+              <div class="eyebrow">Plan semanal</div>
+              <h2>{{ ar.fullName }}</h2>
+            </div>
+            <div class="who__meta">
+              <span class="pill" *ngIf="ar.roomLabel">{{ ar.roomLabel }}</span>
+              <span class="pill" [attr.data-tone]="canEdit ? 'ok' : 'muted'">
+                {{ canEdit ? 'Editable' : 'Solo lectura' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="stats" *ngIf="getActivePlan() as plan">
+            <ng-container *ngIf="planStats(plan) as s">
+              <div class="stat">
+                <div class="stat__k">Planificadas</div>
+                <div class="stat__v">{{ s.planned }}</div>
+              </div>
+              <div class="stat">
+                <div class="stat__k">Realizadas</div>
+                <div class="stat__v">{{ s.done }}</div>
+              </div>
+              <div class="stat">
+                <div class="stat__k">Minutos</div>
+                <div class="stat__v">{{ s.minutes }}</div>
+              </div>
+              <div class="stat stat--ghost">
+                <div class="stat__k">Actualización</div>
+                <div class="stat__v">
+                  <span class="muted">
+                    {{ plan.updatedAtISO ? (plan.updatedAtISO | date:'dd/MM HH:mm') : '—' }}
+                  </span>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+
+        <!-- WEEK GRID -->
+        <div class="week" *ngIf="getActivePlan() as plan">
+          <article
+            class="day"
+            *ngFor="let d of plan.days; let i = index; trackBy: trackByIndex"
+            [class.day--done]="d.completed"
+          >
+            <header class="day__head">
+              <div class="day__date">
+                <div class="day__dow">{{ dayLabel(d.dateISO) }}</div>
+                <div class="day__num">{{ dayNumber(d.dateISO) }}</div>
+              </div>
+
+              <div class="day__actions">
+                <button
+                  class="mini"
+                  type="button"
+                  [title]="d.completed ? 'Marcar como no realizado' : 'Marcar como realizado'"
+                  (click)="toggleCompleted(i)"
+                >
+                  {{ d.completed ? '✓' : '○' }}
+                </button>
+
+                <button
+                  *ngIf="canEdit"
+                  class="mini mini--edit"
+                  type="button"
+                  title="Editar sesión"
+                  (click)="openDayEditor(i)"
+                >
+                  ✎
+                </button>
+
+                <button
+                  *ngIf="canEdit"
+                  class="mini mini--danger"
+                  type="button"
+                  title="Limpiar día"
+                  (click)="clearDay(i)"
+                >
+                  ⟲
+                </button>
+              </div>
+            </header>
+
+            <div class="day__body">
+              <div class="focus">
+                <div class="focus__row">
+                  <span class="tone" [ngClass]="toneClass(d.intensity)"></span>
+                  <div class="focus__name">{{ d.focus || '—' }}</div>
+                </div>
+
+                <div class="focus__meta">
+                  <span class="pill pill--soft">{{ d.time || '—' }}</span>
+                  <span class="pill pill--soft">{{ d.minutes || 0 }} min</span>
+                  <span class="pill pill--soft">
+                    {{ (d.intensity || 'suave') | titlecase }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="seq" *ngIf="sequenceById(d.sequenceId) as seq; else noSeqTpl">
+                <div class="seq__name">{{ seq.name }}</div>
+                <div class="seq__meta">
+                  <span class="pill pill--seq">{{ seq.minutes }} min</span>
+                  <span class="pill pill--seq" [attr.data-tone]="seq.tone">{{ seq.tone | titlecase }}</span>
+                  <span class="pill pill--seq">{{ seq.items.length }} items</span>
+                </div>
+              </div>
+
+              <ng-template #noSeqTpl>
+                <div class="seq seq--empty">
+                  <div class="seq__name">Sin secuencia</div>
+                  <div class="seq__meta">
+                    <span class="muted">Elegí una desde el editor</span>
+                  </div>
+                </div>
+              </ng-template>
+
+              <div class="notes" *ngIf="d.notes">
+                <div class="notes__icon">✺</div>
+                <div class="notes__txt">{{ d.notes }}</div>
+              </div>
+
+              <div class="done" *ngIf="d.completed">
+                <span class="done__spark"></span>
+                <span class="done__txt">
+                  Realizado {{ d.completedAtISO ? (d.completedAtISO | date:'dd/MM HH:mm') : '' }}
+                </span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <!-- EDITOR DRAWER -->
+        <section class="drawer" *ngIf="editingDayIndex !== null">
+          <div class="drawer__glass">
+            <div class="drawer__head">
+              <div class="drawer__title">
+                <div class="eyebrow">Editor</div>
+                <h3>Sesión de Yoga</h3>
+              </div>
+
+              <button class="btn btn--ghost btn--sm" type="button" (click)="closeEditor()">
+                Cerrar ✕
+              </button>
+            </div>
+
+            <form class="form" (ngSubmit)="saveDay()">
+              <div class="form__grid">
+                <label class="field">
+                  <span class="field__k">Hora</span>
+                  <input class="input" type="time" formControlName="time" />
+                </label>
+
+                <label class="field">
+                  <span class="field__k">Duración (min)</span>
+                  <input class="input" type="number" min="10" max="120" formControlName="minutes" />
+                </label>
+
+                <label class="field field--wide">
+                  <span class="field__k">Foco</span>
+                  <input class="input" type="text" maxlength="60" formControlName="focus" />
+                  <span class="field__hint" *ngIf="dayForm.controls.focus.touched && dayForm.controls.focus.invalid">
+                    Requerido (máx 60).
+                  </span>
+                </label>
+
+                <label class="field">
+                  <span class="field__k">Intensidad</span>
+                  <select class="input" formControlName="intensity">
+                    <option value="suave">Suave</option>
+                    <option value="medio">Medio</option>
+                    <option value="intenso">Intenso</option>
+                  </select>
+                </label>
+
+                <label class="field field--wide">
+                  <span class="field__k">Secuencia</span>
+                  <select class="input" formControlName="sequenceId">
+                    <option [ngValue]="null">— Sin secuencia —</option>
+                    <option *ngFor="let s of sequences; trackBy: trackById" [value]="s.id">
+                      {{ s.name }} ({{ s.minutes }}min • {{ s.tone }})
+                    </option>
+                  </select>
+                </label>
+
+                <label class="field field--wide">
+                  <span class="field__k">Notas</span>
+                  <textarea class="input input--ta" rows="3" maxlength="260" formControlName="notes"
+                    placeholder="Dolor, respiración, adaptación, contraindicaciones…"></textarea>
+                  <span class="field__hint">
+                    {{ (dayForm.value.notes || '').length }} / 260
+                  </span>
+                </label>
+              </div>
+
+              <div class="form__actions">
+                <button class="btn btn--primary" type="submit">
+                  Guardar
+                </button>
+                <button class="btn btn--ghost" type="button" (click)="closeEditor()">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+
+            <!-- QUICK LIBRARY -->
+            <div class="library">
+              <div class="library__head">
+                <div>
+                  <div class="eyebrow">Biblioteca</div>
+                  <h4>Secuencias</h4>
+                </div>
+                <div class="library__meta">
+                  <span class="pill">{{ sequences.length }} guardadas</span>
+                </div>
+              </div>
+
+              <div class="library__grid">
+                <article class="seqcard" *ngFor="let s of sequences; trackBy: trackById">
+                  <div class="seqcard__top">
+                    <div class="seqcard__name">{{ s.name }}</div>
+                    <span class="seqcard__tone" [attr.data-tone]="s.tone">{{ s.tone }}</span>
+                  </div>
+
+                  <div class="seqcard__meta">
+                    <span class="pill pill--soft">{{ s.minutes }} min</span>
+                    <span class="pill pill--soft">{{ s.items.length }} items</span>
+                  </div>
+
+                  <div class="seqcard__items">
+                    <div class="line" *ngFor="let it of s.items | slice:0:3; trackBy: trackByIndex">
+                      • {{ it.title }}
+                    </div>
+                    <div class="muted" *ngIf="s.items.length > 3">+{{ s.items.length - 3 }} más</div>
+                  </div>
+
+                  <div class="seqcard__actions">
+                    <button
+                      class="btn btn--ghost btn--sm"
+                      type="button"
+                      (click)="dayForm.patchValue({ sequenceId: s.id })"
+                    >
+                      Usar
+                    </button>
+
+                    <button
+                      *ngIf="canEdit"
+                      class="btn btn--danger btn--sm"
+                      type="button"
+                      (click)="deleteSequence(s.id)"
+                      title="Eliminar secuencia"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <!-- CATALOG (optional) -->
+            <div class="catalog">
+              <div class="catalog__head">
+                <div>
+                  <div class="eyebrow">Catálogo</div>
+                  <h4>Items de Yoga (servicios/yoga)</h4>
+                </div>
+                <div class="catalog__meta">
+                  <span class="pill" *ngIf="loadingCatalog">Cargando…</span>
+                  <span class="pill" *ngIf="!loadingCatalog">{{ catalogItems.length }} items</span>
+                </div>
+              </div>
+
+              <div class="search search--mini">
+                <span class="search__icon">⌕</span>
+                <input
+                  class="search__input"
+                  type="text"
+                  placeholder="Filtrar catálogo…"
+                  [(ngModel)]="catalogQuery"
+                  [ngModelOptions]="{standalone:true}"
+                />
+              </div>
+
+              <div class="catlist" *ngIf="filteredCatalog.length; else emptyCatalogTpl">
+                <article class="cat" *ngFor="let it of filteredCatalog | slice:0:10; trackBy: trackById">
+                  <div class="cat__title">{{ it.title }}</div>
+                  <div class="cat__desc" *ngIf="it.description">{{ it.description }}</div>
+                  <div class="cat__meta">
+                    <span class="pill pill--soft">{{ it.minutes || 0 }} min</span>
+                    <span class="pill pill--soft">{{ it.level || '—' }}</span>
+                  </div>
+
+                  <button
+                    *ngIf="canEdit"
+                    class="btn btn--ghost btn--sm"
+                    type="button"
+                    (click)="addQuickSequenceFromCatalog(it)"
+                  >
+                    Crear secuencia rápida
+                  </button>
+                </article>
+              </div>
+
+              <ng-template #emptyCatalogTpl>
+                <div class="empty empty--mini">
+                  <div class="empty__icon">☾</div>
+                  <div class="empty__title">Catálogo vacío</div>
+                  <div class="empty__txt">Si backend aún no responde, podés usar secuencias locales igual.</div>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+        </section>
+      </ng-container>
+
+      <ng-template #pickResidentTpl>
+        <div class="empty stage__empty">
+          <div class="empty__icon">⟁</div>
+          <div class="empty__title">Seleccioná un residente</div>
+          <div class="empty__txt">Elegí alguien del panel izquierdo para ver y gestionar el plan semanal.</div>
+        </div>
+      </ng-template>
+    </section>
+  </main>
+</div>

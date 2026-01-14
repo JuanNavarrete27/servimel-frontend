@@ -1,155 +1,537 @@
 <!-- src/app/pages/ed-fisica/ed-fisica.page.html -->
-<section #pageRoot class="servicio-page">
+<!-- ============================================================
+     SERVIMEL — Educación Física
+     Estilo: Neon Gym + Holo Glass + Scanlines
+     Rol entrenador_fisico / edfisica / profesor / admin: edición
+     Otros roles: solo lectura
 
-  <!-- Header -->
-  <header class="hero">
-    <div class="hero__left">
-      <div class="kicker">SERVIMEL · Servicios</div>
+✅ CORREGIDO para el backend REAL:
+- Ya NO existe "PATCH status" real: status se marca vía LOG (POST /logs)
+- "Pendiente" no se puede revertir (no hay DELETE/PUT de logs en backend)
+- "Eliminar" en realidad vacía el día dentro del PLAN semanal (PUT /plans/:id)
+============================================================ -->
 
-      <h1 class="title">
-        {{ category?.name || 'Educación Física' }}
-      </h1>
+<section class="ef-shell">
 
-      <p class="subtitle" *ngIf="category?.description; else defaultDesc">
-        {{ category?.description }}
-      </p>
-      <ng-template #defaultDesc>
-        <p class="subtitle">
-          Actividades, rutinas y contenidos para acompañar el movimiento y el bienestar.
+  <!-- FX LAYERS -->
+  <div class="ef-bg">
+    <div class="ef-bg__grid"></div>
+    <div class="ef-bg__aurora"></div>
+    <div class="ef-bg__scan"></div>
+    <div class="ef-bg__noise"></div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="ef-head">
+    <div class="ef-brand">
+      <div class="ef-sigil" aria-hidden="true"></div>
+
+      <div class="ef-brand__copy">
+        <div class="ef-eyebrow">SERVIMEL</div>
+        <h1 class="ef-title">Educación Física</h1>
+        <p class="ef-sub">
+          Rutinas recetadas • Sesiones planificadas • Seguimiento profesional
         </p>
-      </ng-template>
-
-      <div class="actions">
-        <button class="btn btn--ghost" type="button" (click)="refresh()" [disabled]="loading">
-          Actualizar
-        </button>
-
-        <div class="search">
-          <span class="search__icon" aria-hidden="true">⌕</span>
-          <input
-            type="text"
-            [(ngModel)]="q"
-            (input)="onSearchInput()"
-            placeholder="Buscar..."
-            aria-label="Buscar en Educación Física"
-            [disabled]="loading"
-          />
-        </div>
       </div>
     </div>
 
-    <div class="hero__right">
-      <div class="badge">
-        <div class="badge__label">Slug</div>
-        <div class="badge__value">{{ slug }}</div>
+    <div class="ef-actions">
+      <div class="ef-role"
+           [class.ef-role--trainer]="isEntrenadorFisico()"
+           [attr.data-tone]="isEntrenadorFisico() ? 'trainer' : 'viewer'">
+        <span class="dot"></span>
+        <span class="txt">
+          {{ isEntrenadorFisico() ? 'Entrenador físico' : ('Vista (solo lectura): ' + (role() || 'sin rol')) }}
+        </span>
       </div>
 
-      <div class="stats">
-        <div class="stat">
-          <div class="stat__k">{{ items?.length || 0 }}</div>
-          <div class="stat__t">Ítems</div>
-        </div>
-        <div class="stat">
-          <div class="stat__k">DB</div>
-          <div class="stat__t">Real</div>
-        </div>
-      </div>
+      <button class="btn btn--primary"
+              type="button"
+              (click)="openCreate()"
+              [disabled]="!isEntrenadorFisico()">
+        <span class="btn__icon">＋</span>
+        <span>Nueva sesión</span>
+      </button>
     </div>
   </header>
 
-  <!-- States -->
-  <div class="state" *ngIf="loading">
-    <div class="spinner" aria-hidden="true"></div>
-    <div class="state__text">Cargando contenido…</div>
-  </div>
+  <!-- KPIs -->
+  <section class="ef-kpis">
+    <article class="kpi kpi--a">
+      <div class="kpi__label">Total</div>
+      <div class="kpi__value">{{ kpis().total }}</div>
+      <div class="kpi__hint">Sesiones visibles</div>
+    </article>
 
-  <div class="state state--error" *ngIf="!loading && errorMsg">
-    <div class="state__title">No se pudo cargar</div>
-    <div class="state__text">{{ errorMsg }}</div>
-    <button class="btn" type="button" (click)="refresh()">Reintentar</button>
-  </div>
+    <article class="kpi kpi--b">
+      <div class="kpi__label">Pendientes</div>
+      <div class="kpi__value">{{ kpis().pendientes }}</div>
+      <div class="kpi__hint">Planificadas sin log</div>
+    </article>
 
-  <!-- List -->
-  <section class="grid" *ngIf="!loading && !errorMsg">
+    <article class="kpi kpi--c">
+      <div class="kpi__label">Cumplidas</div>
+      <div class="kpi__value">{{ kpis().cumplidas }}</div>
+      <div class="kpi__hint">Marcadas vía logs</div>
+    </article>
 
-    <div class="state state--sub" *ngIf="loadingItems">
-      <div class="spinner" aria-hidden="true"></div>
-      <div class="state__text">Buscando…</div>
-    </div>
-
-    <ng-container *ngIf="!loadingItems">
-      <article
-        class="card"
-        *ngFor="let it of items; trackBy: trackById"
-        (click)="openItem(it)"
-        tabindex="0"
-        role="button"
-        [attr.aria-label]="'Abrir: ' + (it.title || 'Ítem')"
-      >
-        <div class="card__top">
-          <div class="card__title">{{ it.title }}</div>
-          <div class="pill" *ngIf="it.is_active === false">Inactivo</div>
-        </div>
-
-        <div class="card__desc" *ngIf="it.description; else noDesc">
-          {{ it.description }}
-        </div>
-        <ng-template #noDesc>
-          <div class="card__desc card__desc--muted">
-            Sin descripción.
-          </div>
-        </ng-template>
-
-        <div class="card__meta">
-          <span *ngIf="it.created_at">Creado: {{ it.created_at | date:'short' }}</span>
-          <span *ngIf="it.updated_at">· Actualizado: {{ it.updated_at | date:'short' }}</span>
-        </div>
-
-        <div class="card__cta">
-          Ver detalle →
-        </div>
-      </article>
-
-      <div class="empty" *ngIf="(items?.length || 0) === 0">
-        <div class="empty__title">Sin resultados</div>
-        <div class="empty__text">
-          Probá con otra búsqueda o tocá “Actualizar”.
-        </div>
-      </div>
-    </ng-container>
+    <article class="kpi kpi--d">
+      <div class="kpi__label">Omitidas</div>
+      <div class="kpi__value">{{ kpis().omitidas }}</div>
+      <div class="kpi__hint">Marcadas vía logs</div>
+    </article>
   </section>
 
-  <!-- Modal -->
-  <div class="modal" *ngIf="selected" (click)="closeModal()">
-    <div class="modal__card" (click)="$event.stopPropagation()">
-      <div class="modal__head">
-        <div class="modal__title">{{ selected?.title }}</div>
-        <button class="iconbtn" type="button" (click)="closeModal()" aria-label="Cerrar">
-          ✕
+  <!-- MAIN GRID -->
+  <section class="ef-grid">
+    <!-- LEFT: Filters + Next -->
+    <aside class="panel panel--left">
+      <div class="panel__head">
+        <div>
+          <div class="panel__eyebrow">Control</div>
+          <h2 class="panel__title">Filtros & vista</h2>
+          <p class="muted" *ngIf="errorMsg()">{{ errorMsg() }}</p>
+        </div>
+
+        <button class="btn btn--ghost" type="button" (click)="clearFilters()">
+          Limpiar
         </button>
       </div>
 
-      <div class="modal__sub" *ngIf="selected?.description">
-        {{ selected?.description }}
+      <div class="filters">
+        <label class="field">
+          <span class="field__label">Buscar</span>
+          <input class="input"
+                 type="text"
+                 [value]="q()"
+                 (input)="setQ(($any($event.target).value))"
+                 placeholder="Residente, objetivo, ejercicio, notas..." />
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span class="field__label">Foco</span>
+            <select class="select" [value]="filtroFoco()" (change)="setFoco($any($event.target).value)">
+              <option value="todos">Todos</option>
+              <option value="fuerza">Fuerza</option>
+              <option value="movilidad">Movilidad</option>
+              <option value="cardio">Cardio</option>
+              <option value="equilibrio">Equilibrio</option>
+              <option value="rehab">Rehab</option>
+              <option value="mixto">Mixto</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Estado</span>
+            <select class="select" [value]="filtroEstado()" (change)="setEstado($any($event.target).value)">
+              <option value="todos">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="cumplida">Cumplida</option>
+              <option value="omitida">Omitida</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field__label">Residente</span>
+          <select class="select" [value]="filtroResidentId()" (change)="setResident($any($event.target).value)">
+            <option value="todos">Todos</option>
+            <option *ngFor="let r of residents(); trackBy: trackById" [value]="r.id">
+              #{{ r.id }} — {{ r.nombre }} {{ r.habitacion ? ('(Hab. ' + r.habitacion + ')') : '' }}
+            </option>
+          </select>
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span class="field__label">Semana (desde)</span>
+            <input class="input"
+                   type="date"
+                   [value]="filtroDesdeISO()"
+                   (change)="setDesde($any($event.target).value)" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Hasta</span>
+            <input class="input"
+                   type="date"
+                   [value]="filtroHastaISO()"
+                   (change)="setHasta($any($event.target).value)" />
+          </label>
+        </div>
+
+        <button class="btn btn--ghost"
+                type="button"
+                (click)="clearFilters();"
+                [disabled]="loading()">
+          Refrescar
+        </button>
       </div>
 
-      <div class="modal__content" *ngIf="selected?.content; else noContent">
-        <div class="content" [innerHTML]="selected!.content"></div>
+      <!-- NEXT SESSION -->
+      <div class="next">
+        <div class="next__head">
+          <div class="pill">Próxima sesión</div>
+          <div class="spark" aria-hidden="true"></div>
+        </div>
+
+        <ng-container *ngIf="nextSession() as ns; else noNext">
+          <div class="next__title">{{ ns.objetivo }}</div>
+          <div class="next__meta">
+            <span class="chip">Residente: <b>{{ ns.residentNombre }}</b></span>
+            <span class="chip">Fecha: <b>{{ ns.dateISO }}</b></span>
+            <span class="chip" *ngIf="ns.startTime">Hora: <b>{{ ns.startTime }}</b></span>
+            <span class="chip">Foco: <b>{{ ns.foco }}</b></span>
+            <span class="chip">Intensidad: <b>{{ ns.intensidad }}</b></span>
+          </div>
+
+          <div class="next__list">
+            <div class="mini" *ngFor="let e of ns.ejercicios; trackBy: trackByIdx">
+              <span class="mini__dot"></span>
+              <span class="mini__txt">{{ e.nombre }}</span>
+              <span class="mini__tag">{{ e.series }}×{{ e.repeticiones }}</span>
+            </div>
+          </div>
+
+          <div class="next__footer">
+            <button class="btn btn--ghost"
+                    type="button"
+                    (click)="openEdit(ns)"
+                    [disabled]="!isEntrenadorFisico()">
+              Editar
+            </button>
+
+            <button class="btn btn--primary"
+                    type="button"
+                    (click)="markStatus(ns,'cumplida')"
+                    [disabled]="!isEntrenadorFisico() || saving()">
+              Marcar cumplida
+            </button>
+          </div>
+        </ng-container>
+
+        <ng-template #noNext>
+          <div class="empty">
+            <div class="empty__title">Sin próximas sesiones</div>
+            <div class="empty__sub">Si sos entrenador físico, podés crear una nueva.</div>
+          </div>
+        </ng-template>
       </div>
 
-      <ng-template #noContent>
-        <div class="modal__content modal__content--muted">
-          Sin contenido extendido.
+      <!-- INFO -->
+      <div class="notice">
+        <div class="notice__icon" aria-hidden="true">i</div>
+        <div class="notice__text">
+          <b>Backend real:</b> las “sesiones” salen de <b>PLAN semanal</b> y el estado se marca con <b>LOGS</b>.
+          No existe PATCH status directo.
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: Sessions list -->
+    <main class="panel panel--right">
+      <div class="panel__head">
+        <div>
+          <div class="panel__eyebrow">Planificación</div>
+          <h2 class="panel__title">Sesiones recetadas</h2>
+        </div>
+
+        <div class="panel__tools">
+          <div class="tag" [class.tag--ok]="isEntrenadorFisico()">
+            {{ isEntrenadorFisico() ? 'Modo edición habilitado' : 'Modo solo lectura' }}
+          </div>
+        </div>
+      </div>
+
+      <div class="list" *ngIf="!loading(); else loadingTpl">
+        <ng-container *ngIf="filteredSessions().length > 0; else emptyTpl">
+          <article class="card"
+                   *ngFor="let s of filteredSessions(); trackBy: trackById"
+                   [attr.data-status]="s.status">
+            <div class="card__top">
+              <div class="card__who">
+                <div class="avatar" aria-hidden="true"></div>
+                <div class="who">
+                  <div class="who__name">{{ s.residentNombre }}</div>
+                  <div class="who__meta">
+                    <span class="chip">Fecha: <b>{{ s.dateISO }}</b></span>
+                    <span class="chip" *ngIf="s.startTime">Hora: <b>{{ s.startTime }}</b></span>
+                    <span class="chip" *ngIf="s.durationMin">Duración: <b>{{ s.durationMin }}m</b></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card__status">
+                <span class="badge"
+                      [class.badge--pending]="s.status==='pendiente'"
+                      [class.badge--done]="s.status==='cumplida'"
+                      [class.badge--skip]="s.status==='omitida'">
+                  {{ s.status }}
+                </span>
+
+                <span class="badge badge--focus">{{ s.foco }}</span>
+                <span class="badge badge--int">{{ s.intensidad }}</span>
+              </div>
+            </div>
+
+            <div class="card__mid">
+              <h3 class="card__title">{{ s.objetivo }}</h3>
+              <p class="card__notes" *ngIf="s.notas">{{ s.notas }}</p>
+
+              <div class="ex">
+                <div class="ex__head">
+                  <div class="ex__label">Ejercicios</div>
+                  <div class="ex__hint">Series × reps — descanso</div>
+                </div>
+
+                <div class="ex__grid">
+                  <div class="exrow" *ngFor="let e of s.ejercicios; trackBy: trackByIdx">
+                    <div class="exrow__name">{{ e.nombre }}</div>
+                    <div class="exrow__meta">
+                      <span class="pill2">{{ e.series }}×{{ e.repeticiones }}</span>
+                      <span class="pill2">{{ e.descansoSeg }}s</span>
+                      <span class="pill2" *ngIf="e.tempo">{{ e.tempo }}</span>
+                    </div>
+                    <div class="exrow__cues" *ngIf="e.indicaciones">{{ e.indicaciones }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card__bot">
+              <div class="card__by">
+                <span class="muted">Recetado por:</span>
+                <b>{{ s.creadoPorNombre || 'Ed-Física' }}</b>
+                <span class="sep">•</span>
+                <span class="muted">Última actualización:</span>
+                <b>{{ s.updatedAtISO || s.dateISO }}</b>
+              </div>
+
+              <div class="card__btns">
+                <button class="btn btn--ghost"
+                        type="button"
+                        (click)="openEdit(s)"
+                        [disabled]="!isEntrenadorFisico()">
+                  Editar
+                </button>
+
+                <!-- ⚠️ No reversible sin endpoint de borrar log -->
+                <button class="btn btn--ghost"
+                        type="button"
+                        (click)="markStatus(s,'pendiente')"
+                        [disabled]="true"
+                        title="No existe endpoint para revertir a pendiente (falta DELETE/PUT de logs)">
+                  Pendiente
+                </button>
+
+                <button class="btn btn--ghost"
+                        type="button"
+                        (click)="markStatus(s,'cumplida')"
+                        [disabled]="!isEntrenadorFisico() || saving()">
+                  Cumplida
+                </button>
+
+                <button class="btn btn--ghost"
+                        type="button"
+                        (click)="markStatus(s,'omitida')"
+                        [disabled]="!isEntrenadorFisico() || saving()">
+                  Omitida
+                </button>
+
+                <button class="btn btn--danger"
+                        type="button"
+                        (click)="remove(s)"
+                        [disabled]="!isEntrenadorFisico() || saving()">
+                  Vaciar día
+                </button>
+              </div>
+            </div>
+          </article>
+        </ng-container>
+
+        <ng-template #emptyTpl>
+          <div class="empty big">
+            <div class="empty__title">No hay sesiones para mostrar</div>
+            <div class="empty__sub">Probá ajustar filtros o crear una sesión (si sos entrenador).</div>
+          </div>
+        </ng-template>
+      </div>
+
+      <ng-template #loadingTpl>
+        <div class="loading">
+          <div class="loader"></div>
+          <div class="loading__txt">Cargando Educación Física…</div>
         </div>
       </ng-template>
+    </main>
+  </section>
 
-      <div class="modal__foot">
-        <div class="meta">
-          <div *ngIf="selected?.created_at">Creado: {{ selected?.created_at | date:'short' }}</div>
-          <div *ngIf="selected?.updated_at">Actualizado: {{ selected?.updated_at | date:'short' }}</div>
+  <!-- EDITOR MODAL -->
+  <div class="modal" *ngIf="editorOpen()" role="dialog" aria-modal="true">
+    <div class="modal__backdrop" (click)="closeEditor()"></div>
+
+    <div class="modal__card">
+      <div class="modal__head">
+        <div>
+          <div class="modal__kicker">Editor</div>
+          <h2 class="modal__title">
+            {{ editorMode()==='create' ? 'Nueva sesión' : 'Editar sesión' }}
+          </h2>
         </div>
 
-        <button class="btn" type="button" (click)="closeModal()">Cerrar</button>
+        <button class="iconbtn" type="button" (click)="closeEditor()" aria-label="Cerrar">✕</button>
+      </div>
+
+      <form class="modal__body" [formGroup]="form">
+        <div class="formgrid">
+          <label class="field">
+            <span class="field__label">Residente</span>
+            <select class="select" formControlName="residentId">
+              <option [ngValue]="null">Seleccionar…</option>
+              <option *ngFor="let r of residents(); trackBy: trackById" [ngValue]="r.id">
+                #{{ r.id }} — {{ r.nombre }} {{ r.habitacion ? ('(Hab. ' + r.habitacion + ')') : '' }}
+              </option>
+            </select>
+            <span class="err" *ngIf="form.get('residentId')?.touched && form.get('residentId')?.invalid">
+              Seleccioná un residente.
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Fecha</span>
+            <input class="input" type="date" formControlName="dateISO" />
+            <span class="err" *ngIf="form.get('dateISO')?.touched && form.get('dateISO')?.invalid">
+              Ingresá una fecha válida.
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Hora (opcional)</span>
+            <input class="input" type="time" formControlName="startTime" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Duración (min)</span>
+            <input class="input" type="number" formControlName="durationMin" min="10" max="180" />
+          </label>
+
+          <label class="field field--full">
+            <span class="field__label">Objetivo</span>
+            <input class="input" type="text" formControlName="objetivo" placeholder="Ej: Fuerza suave + movilidad (sin impacto)" />
+            <span class="err" *ngIf="form.get('objetivo')?.touched && form.get('objetivo')?.invalid">
+              Objetivo requerido (3–70 caracteres).
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Foco</span>
+            <select class="select" formControlName="foco">
+              <option value="fuerza">Fuerza</option>
+              <option value="movilidad">Movilidad</option>
+              <option value="cardio">Cardio</option>
+              <option value="equilibrio">Equilibrio</option>
+              <option value="rehab">Rehab</option>
+              <option value="mixto">Mixto</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Intensidad</span>
+            <select class="select" formControlName="intensidad">
+              <option value="suave">Suave</option>
+              <option value="moderada">Moderada</option>
+              <option value="intensa">Intensa</option>
+            </select>
+          </label>
+
+          <label class="field field--full">
+            <span class="field__label">Notas clínicas / indicaciones generales</span>
+            <textarea class="textarea" formControlName="notas" rows="3" placeholder="Contraindicaciones, dolor tolerable, hidratación, pausas, etc."></textarea>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="block">
+          <div class="block__head">
+            <div>
+              <div class="block__kicker">Rutina</div>
+              <h3 class="block__title">Ejercicios</h3>
+            </div>
+
+            <button class="btn btn--ghost"
+                    type="button"
+                    (click)="addExercise()"
+                    [disabled]="!isEntrenadorFisico()">
+              + Agregar ejercicio
+            </button>
+          </div>
+
+          <div class="exercise-list" formArrayName="ejercicios">
+            <div class="exercise-item"
+                 *ngFor="let g of ejerciciosFA.controls; let i = index; trackBy: trackByIdx"
+                 [formGroupName]="i">
+              <div class="exercise-item__grid">
+                <label class="field field--full">
+                  <span class="field__label">Ejercicio #{{ i + 1 }}</span>
+                  <input class="input" type="text" formControlName="nombre" placeholder="Ej: Remo con banda" />
+                </label>
+
+                <label class="field">
+                  <span class="field__label">Series</span>
+                  <input class="input" type="number" formControlName="series" min="1" max="12" />
+                </label>
+
+                <label class="field">
+                  <span class="field__label">Reps</span>
+                  <input class="input" type="number" formControlName="repeticiones" min="1" max="100" />
+                </label>
+
+                <label class="field">
+                  <span class="field__label">Descanso (s)</span>
+                  <input class="input" type="number" formControlName="descansoSeg" min="0" max="600" />
+                </label>
+
+                <label class="field">
+                  <span class="field__label">Tempo (opcional)</span>
+                  <input class="input" type="text" formControlName="tempo" placeholder="2-1-2" />
+                </label>
+
+                <label class="field field--full">
+                  <span class="field__label">Indicaciones (cues)</span>
+                  <input class="input" type="text" formControlName="indicaciones" placeholder="Postura, respiración, rango, seguridad..." />
+                </label>
+              </div>
+
+              <div class="exercise-item__actions">
+                <button class="btn btn--danger"
+                        type="button"
+                        (click)="removeExercise(i)"
+                        [disabled]="!isEntrenadorFisico() || ejerciciosFA.length<=1">
+                  Quitar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="modal__foot">
+        <div class="modal__hint">
+          <span class="muted">Backend real:</span>
+          <b>POST/PUT</b> Plan semanal, <b>POST</b> Logs para marcar estado, <b>GET</b> por residente/semana.
+        </div>
+
+        <div class="modal__btns">
+          <button class="btn btn--ghost" type="button" (click)="closeEditor()">Cancelar</button>
+          <button class="btn btn--primary"
+                  type="button"
+                  (click)="save()"
+                  [disabled]="saving() || !isEntrenadorFisico()">
+            {{ saving() ? 'Guardando…' : 'Guardar' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

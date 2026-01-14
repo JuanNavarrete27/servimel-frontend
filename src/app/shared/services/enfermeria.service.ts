@@ -1,8 +1,9 @@
+// F3 — src/app/shared/services/enfermeria.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { API_CONFIG } from '../../core/config/api.config';
-import { unwrap } from './api-unwrap';
+import { unwrapApi, ApiResponse } from '../../core/utils/api-unwrap';
 
 @Injectable({ providedIn: 'root' })
 export class EnfermeriaService {
@@ -11,8 +12,10 @@ export class EnfermeriaService {
   // HOY (panel rápido)
   hoy(): Promise<any> {
     return firstValueFrom(
-      this.http.get<any>(`${API_CONFIG.baseUrl}/enfermeria/hoy`)
-    ).then(unwrap);
+      this.http
+        .get<ApiResponse<any>>(`${API_CONFIG.baseUrl}/enfermeria/hoy`)
+        .pipe(map((res) => unwrapApi<any>(res)))
+    );
   }
 
   // SIGNOS/VITALES
@@ -21,11 +24,13 @@ export class EnfermeriaService {
     payload: { temp?: string; presion?: string; pulso?: string; notes?: string }
   ): Promise<any> {
     return firstValueFrom(
-      this.http.post<any>(
-        `${API_CONFIG.baseUrl}/enfermeria/residentes/${residenteId}/vitals`,
-        payload
-      )
-    ).then(unwrap);
+      this.http
+        .post<ApiResponse<any>>(
+          `${API_CONFIG.baseUrl}/enfermeria/residentes/${residenteId}/vitals`,
+          payload
+        )
+        .pipe(map((res) => unwrapApi<any>(res)))
+    );
   }
 
   // MEDICACIÓN
@@ -34,11 +39,13 @@ export class EnfermeriaService {
     payload: { medicamento: string; dosis: string; horario: string; notes?: string }
   ): Promise<any> {
     return firstValueFrom(
-      this.http.post<any>(
-        `${API_CONFIG.baseUrl}/enfermeria/residentes/${residenteId}/medications`,
-        payload
-      )
-    ).then(unwrap);
+      this.http
+        .post<ApiResponse<any>>(
+          `${API_CONFIG.baseUrl}/enfermeria/residentes/${residenteId}/medications`,
+          payload
+        )
+        .pipe(map((res) => unwrapApi<any>(res)))
+    );
   }
 
   // OBSERVACIONES
@@ -47,20 +54,24 @@ export class EnfermeriaService {
     payload: { tipo: string; texto: string; severity?: 'info' | 'warning' | 'critical' }
   ): Promise<any> {
     return firstValueFrom(
-      this.http.post<any>(
-        `${API_CONFIG.baseUrl}/enfermeria/residentes/${residenteId}/observations`,
-        payload
-      )
-    ).then(unwrap);
+      this.http
+        .post<ApiResponse<any>>(
+          `${API_CONFIG.baseUrl}/enfermeria/residentes/${residenteId}/observations`,
+          payload
+        )
+        .pipe(map((res) => unwrapApi<any>(res)))
+    );
   }
 
   // RESOLVER ALERTA (observación)
   resolveObservacion(obsId: number, payload?: { resolution_note?: string }): Promise<any> {
     return firstValueFrom(
-      this.http.put<any>(
-        `${API_CONFIG.baseUrl}/enfermeria/observations/${obsId}/resolve`,
-        payload ?? {}
-      )
-    ).then(unwrap);
+      this.http
+        .put<ApiResponse<any>>(
+          `${API_CONFIG.baseUrl}/enfermeria/observations/${obsId}/resolve`,
+          payload ?? {}
+        )
+        .pipe(map((res) => unwrapApi<any>(res)))
+    );
   }
 }

@@ -1,60 +1,58 @@
 // src/app/shared/models/servicio.model.ts
 // ============================================================
-// SERVIMEL — Modelos de Servicios (DB real)
-// ✅ Tipos alineados con el backend:
-// - service_categories (id, slug, name, description, is_active, created_at, updated_at)
-// - service_items      (id, category_id, title, description, content, is_active, created_at, updated_at)
+// SERVIMEL — Modelos Servicios (DB real)
 // ============================================================
 
-export type ServiceSlug =
-  | 'medicina-general'
-  | 'yoga'
-  | 'fisioterapia'
-  | 'cocina'
-  | 'ed-fisica';
-
-export type ServiceCategory = {
+export interface ServiceCategory {
   id: number;
-  slug: ServiceSlug;
+  slug: 'medicina-general' | 'yoga' | 'ed-fisica' | 'cocina' | 'fisioterapia' | string;
   name: string;
-  description: string | null;
+  description?: string | null;
   is_active: boolean;
-  created_at?: string;
-  updated_at?: string;
-};
+  created_at?: string | null;
+  updated_at?: string | null;
+}
 
-export type ServiceItem = {
+export interface ServiceItem {
   id: number;
-  category_id?: number; // puede venir en algunos endpoints (listItemsByCategory)
+  category_id: number;
   title: string;
-  description: string | null;
-  content: string | null; // puede ser HTML / Markdown / texto
+  description?: string | null;
+  content?: string | null;
   is_active: boolean;
-  created_at?: string;
-  updated_at?: string;
-};
+  created_at?: string | null;
+  updated_at?: string | null;
+}
 
-export type ServiceListResponse<T> = {
+// Respuesta “lista” genérica (items paginados)
+export interface ServiceListResponse<T = any> {
   page: number;
   limit: number;
   total: number;
   items: T[];
-};
+}
 
-export type ServiceCategoryWithItems = {
+// Respuesta de /servicios/:slug (shape estable)
+export interface ServiceCategoryWithItemsResponse {
   category: ServiceCategory;
-  items: ServiceListResponse<ServiceItem>;
-};
+  items: ServiceItem[];
+  page?: number;
+  limit?: number;
+  total?: number;
+}
 
-// Helpers opcionales (por si querés usarlos en páginas)
-export const SERVICE_SLUGS: ServiceSlug[] = [
-  'medicina-general',
-  'yoga',
-  'fisioterapia',
-  'cocina',
-  'ed-fisica',
-];
+// ============================================================
+// GLOBAL SEARCH: resultados con metadata de categoría
+// (para mostrar “de qué servicio viene” cada match)
+// ============================================================
 
-export function isServiceSlug(v: any): v is ServiceSlug {
-  return SERVICE_SLUGS.includes(String(v) as ServiceSlug);
+export interface ServiceItemSearchHit extends ServiceItem {
+  category_slug: string;
+  category_name: string;
+}
+
+export interface ServiceSearchResponse {
+  q: string;
+  total: number;
+  items: ServiceItemSearchHit[];
 }

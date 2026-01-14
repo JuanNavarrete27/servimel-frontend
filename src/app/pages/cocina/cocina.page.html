@@ -1,57 +1,657 @@
-<section class="page">
-  <header class="head">
-    <div>
-      <div class="eyebrow">Cocina</div>
-      <h1>Cocina y menú diario</h1>
-      <p>Planificá el servicio de comidas sin inventar datos. Ajustá menús y entregas según las notas reales que ya maneja el equipo.</p>
+<!-- src/app/pages/cocina/cocina.page.html -->
+<section class="kitchen">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="hero__left">
+      <div class="badge">
+        <span class="badge__dot"></span>
+        <span class="badge__role">Rol: {{ roleLabel }}</span>
+      </div>
+
+      <h1 class="hero__title">Cocina</h1>
+      <p class="hero__subtitle">
+        Menús semanales por residente. El <b>cocinero</b> edita y asigna; el resto ve el menú asignado.
+      </p>
+
+      <div class="weekbar">
+        <button class="btn btn--ghost" type="button" (click)="prevWeek()">
+          ← Semana
+        </button>
+
+        <div class="weekbar__center">
+          <div class="weekbar__range">{{ weekRangeLabel() }}</div>
+          <div class="weekbar__meta">
+            <span class="pill">{{ weekStartIso }}</span>
+            <span class="pill pill--soft">Semana seleccionada</span>
+          </div>
+        </div>
+
+        <button class="btn btn--ghost" type="button" (click)="nextWeek()">
+          Semana →
+        </button>
+      </div>
+
+      <div class="tabs">
+        <button
+          class="tab"
+          type="button"
+          [class.is-active]="tab === 'view'"
+          (click)="setTab('view')"
+        >
+          Vista
+        </button>
+
+        <button
+          class="tab"
+          type="button"
+          *ngIf="canEditMenus"
+          [class.is-active]="tab === 'menu'"
+          (click)="setTab('menu')"
+        >
+          Menús
+        </button>
+
+        <button
+          class="tab"
+          type="button"
+          *ngIf="canAssignMenus"
+          [class.is-active]="tab === 'assign'"
+          (click)="setTab('assign')"
+        >
+          Asignaciones
+        </button>
+
+        <button
+          class="tab"
+          type="button"
+          *ngIf="canAssignMenus"
+          [class.is-active]="tab === 'summary'"
+          (click)="setTab('summary')"
+        >
+          Resumen
+        </button>
+      </div>
     </div>
 
-    <div class="head__pills">
-      <span class="pill">Servicio</span>
-      <span class="pill">Dietas</span>
-      <span class="pill">Entregas</span>
+    <div class="hero__right">
+      <div class="statusCard">
+        <div class="statusCard__top">
+          <div class="statusCard__label">Estado</div>
+          <div class="statusPill" [class.is-published]="currentMenu?.status === 'published'">
+            {{ menuStatusLabel(currentMenu) }}
+          </div>
+        </div>
+
+        <div class="statusCard__body">
+          <div class="statusCard__title">
+            {{ currentMenu?.title || 'No hay menú seleccionado' }}
+          </div>
+          <div class="statusCard__sub">
+            Si no hay menú para la semana, crealo y publicalo.
+          </div>
+
+          <div class="statusCard__actions" *ngIf="canEditMenus">
+            <button class="btn btn--primary" type="button" (click)="openCreateMenu()">
+              + Nuevo menú semanal
+            </button>
+
+            <button
+              class="btn btn--glow"
+              type="button"
+              [disabled]="!selectedMenuId || saving"
+              (click)="saveSelectedMenu()"
+            >
+              Guardar cambios
+            </button>
+
+            <button
+              class="btn btn--danger"
+              type="button"
+              [disabled]="!selectedMenuId || saving"
+              (click)="publishSelectedMenu()"
+              *ngIf="currentMenu?.status !== 'published'"
+            >
+              Publicar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="alerts" *ngIf="errorMsg">
+        <div class="alerts__icon">⚠</div>
+        <div class="alerts__txt">{{ errorMsg }}</div>
+      </div>
+
+      <div class="loading" *ngIf="loading">
+        <div class="loading__bar"></div>
+        <div class="loading__txt">Cargando…</div>
+      </div>
     </div>
   </header>
 
-  <section class="panel">
+  <!-- ================= CONTENT ================= -->
+
+  <!-- ============ TAB: VIEW (READ-ONLY) ============ -->
+  <section class="panel" *ngIf="tab === 'view'">
     <div class="panel__head">
       <div>
-        <div class="eyebrow">Organización</div>
-        <h2>Secciones clave</h2>
+        <div class="panel__eyebrow">Lectura</div>
+        <h2 class="panel__title">Menú asignado</h2>
+        <p class="panel__desc">
+          Enfermería/Médico/Admin pueden seleccionar un residente para ver el menú semanal asignado.
+        </p>
       </div>
-      <span class="tag">Sin datos en vivo</span>
+
+      <div class="panel__tools">
+        <ng-container *ngIf="canPickResident; else noPick">
+          <label class="field field--inline">
+            <span class="field__label">Residente</span>
+            <select class="field__control" [(ngModel)]="viewerResidentId" (ngModelChange)="loadViewer()">
+              <option [ngValue]="null">Seleccionar…</option>
+              <option *ngFor="let r of residents" [ngValue]="r.id">
+                {{ residentLabel(r) }} — #{{ r.id }}
+              </option>
+            </select>
+          </label>
+        </ng-container>
+
+        <ng-template #noPick>
+          <div class="note">
+            Tu rol no permite seleccionar residentes.
+          </div>
+        </ng-template>
+      </div>
     </div>
 
-    <div class="cards">
-      <article class="card" *ngFor="let s of sections; trackBy: trackByTitle">
-        <div class="card__eyebrow">{{ s.title }}</div>
-        <p class="card__desc">{{ s.desc }}</p>
-        <ul>
-          <li *ngFor="let b of s.bullets">{{ b }}</li>
-        </ul>
-      </article>
+    <div class="panel__body">
+      <div class="empty" *ngIf="!viewerResidentId && canPickResident">
+        <div class="empty__orb"></div>
+        <div class="empty__title">Elegí un residente</div>
+        <div class="empty__text">
+          Seleccioná un residente para ver el menú asignado de la semana.
+        </div>
+      </div>
+
+      <div class="viewerInfo" *ngIf="viewerResidentId">
+        <div class="viewerInfo__card">
+          <div class="viewerInfo__label">Asignación</div>
+          <div class="viewerInfo__value">
+            <ng-container *ngIf="viewerResult?.assignment?.menuId; else noMenuAssigned">
+              Menú #{{ viewerResult?.assignment?.menuId }}
+            </ng-container>
+            <ng-template #noMenuAssigned>
+              <span class="muted">Sin menú asignado</span>
+            </ng-template>
+          </div>
+
+          <div class="viewerInfo__meta">
+            <span class="chip" *ngIf="viewerResult?.assignment?.dietType">
+              {{ viewerResult?.assignment?.dietType }}
+            </span>
+            <span class="chip chip--soft" *ngIf="viewerResult?.assignment?.residentNotes">
+              {{ viewerResult?.assignment?.residentNotes }}
+            </span>
+          </div>
+        </div>
+
+        <div class="viewerInfo__card">
+          <div class="viewerInfo__label">Menú</div>
+          <div class="viewerInfo__value">
+            {{ viewerResult?.menu?.title || '—' }}
+          </div>
+          <div class="viewerInfo__meta">
+            <span class="chip" [class.chip--ok]="viewerResult?.menu?.status === 'published'">
+              {{ viewerResult?.menu?.status === 'published' ? 'Publicado' : 'Borrador' }}
+            </span>
+            <span class="chip chip--soft">
+              Semana: {{ weekStartIso }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Read-only grid -->
+      <div class="menuGridWrap" *ngIf="viewerResidentId">
+        <div class="menuGrid">
+          <div class="menuGrid__corner"></div>
+
+          <div class="menuGrid__day" *ngFor="let d of weekDays">
+            <div class="dayTop">{{ d.label }}</div>
+            <div class="dayIso">{{ d.iso }}</div>
+          </div>
+
+          <ng-container *ngFor="let mt of mealTypes">
+            <div class="menuGrid__meal">
+              <span class="mealIcon">{{ mt.icon }}</span>
+              <span class="mealName">{{ mt.label }}</span>
+            </div>
+
+            <div
+              class="menuGrid__cell"
+              *ngFor="let d of weekDays; index as di"
+              [class.is-empty]="!getCell(di, mt.key).main"
+            >
+              <div class="cellMain">{{ getCell(di, mt.key).main || '—' }}</div>
+              <div class="cellSub" *ngIf="getCell(di, mt.key).side">{{ getCell(di, mt.key).side }}</div>
+
+              <div class="cellTags" *ngIf="getCell(di, mt.key).tags.length">
+                <span class="tag" *ngFor="let t of getCell(di, mt.key).tags">{{ t }}</span>
+              </div>
+
+              <div class="cellNotes" *ngIf="getCell(di, mt.key).notes">{{ getCell(di, mt.key).notes }}</div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="panel">
+  <!-- ============ TAB: MENUS (EDITOR) ============ -->
+  <section class="panel" *ngIf="tab === 'menu' && canEditMenus">
     <div class="panel__head">
       <div>
-        <div class="eyebrow">Seguimiento</div>
-        <h2>Estado actual</h2>
+        <div class="panel__eyebrow">Edición</div>
+        <h2 class="panel__title">Menú semanal</h2>
+        <p class="panel__desc">Click en una celda para editar. Guardá y después publicá.</p>
       </div>
-      <span class="tag tag--muted">Limpiamos los 404 (sin llamados extra)</span>
+
+      <div class="panel__tools">
+        <label class="field field--inline">
+          <span class="field__label">Menús</span>
+          <select class="field__control" [ngModel]="selectedMenuId" (ngModelChange)="selectMenu($event, true)">
+            <option [ngValue]="null">Seleccionar…</option>
+            <option *ngFor="let m of menus" [ngValue]="m.id">
+              #{{ m.id }} — {{ m.title }} ({{ m.status === 'published' ? 'Publicado' : 'Borrador' }})
+            </option>
+          </select>
+        </label>
+      </div>
     </div>
 
-    <div class="highlights">
-      <div class="highlight" *ngFor="let h of highlights; trackBy: trackByHighlight" [attr.data-tone]="h.tone">
-        <div class="highlight__label">{{ h.label }}</div>
-        <div class="highlight__detail">{{ h.detail }}</div>
+    <div class="panel__body">
+      <div class="empty" *ngIf="!selectedMenuId">
+        <div class="empty__orb"></div>
+        <div class="empty__title">No hay menú</div>
+        <div class="empty__text">
+          Creá un menú semanal o seleccioná uno de la lista.
+        </div>
+        <button class="btn btn--primary" type="button" (click)="openCreateMenu()">+ Crear menú</button>
       </div>
-    </div>
 
-    <div class="empty">
-      <div class="empty__title">Sin pedidos en curso</div>
-      <div class="empty__text">Cuando lleguen requerimientos reales se listarán acá. Mientras tanto podés preparar el menú y las rutas internas.</div>
+      <div class="menuGridWrap" *ngIf="selectedMenuId">
+        <div class="menuGrid menuGrid--editable">
+          <div class="menuGrid__corner"></div>
+
+          <div class="menuGrid__day" *ngFor="let d of weekDays">
+            <div class="dayTop">{{ d.label }}</div>
+            <div class="dayIso">{{ d.iso }}</div>
+          </div>
+
+          <ng-container *ngFor="let mt of mealTypes">
+            <div class="menuGrid__meal">
+              <span class="mealIcon">{{ mt.icon }}</span>
+              <span class="mealName">{{ mt.label }}</span>
+            </div>
+
+            <button
+              class="menuGrid__cell menuGrid__cellBtn"
+              type="button"
+              *ngFor="let d of weekDays; index as di"
+              (click)="openCell(di, mt.key)"
+              [class.is-empty]="!getCell(di, mt.key).main"
+            >
+              <div class="cellMain">{{ getCell(di, mt.key).main || '—' }}</div>
+              <div class="cellSub" *ngIf="getCell(di, mt.key).side">{{ getCell(di, mt.key).side }}</div>
+
+              <div class="cellTags" *ngIf="getCell(di, mt.key).tags.length">
+                <span class="tag" *ngFor="let t of getCell(di, mt.key).tags">{{ t }}</span>
+              </div>
+
+              <div class="cellHint">Editar</div>
+            </button>
+          </ng-container>
+        </div>
+
+        <div class="actionsRow">
+          <button class="btn btn--glow" type="button" [disabled]="saving" (click)="saveSelectedMenu()">
+            Guardar cambios
+          </button>
+          <button
+            class="btn btn--danger"
+            type="button"
+            [disabled]="saving"
+            (click)="publishSelectedMenu()"
+            *ngIf="currentMenu?.status !== 'published'"
+          >
+            Publicar menú
+          </button>
+
+          <div class="muted" *ngIf="currentMenu?.status === 'published'">
+            Este menú ya está publicado. (Si querés permitir re-edición, lo manejamos en backend con auditoría.)
+          </div>
+        </div>
+      </div>
     </div>
   </section>
+
+  <!-- ============ TAB: ASSIGNMENTS ============ -->
+  <section class="panel" *ngIf="tab === 'assign' && canAssignMenus">
+    <div class="panel__head">
+      <div>
+        <div class="panel__eyebrow">Asignación</div>
+        <h2 class="panel__title">Menú por residente</h2>
+        <p class="panel__desc">Seleccioná un menú semanal para cada residente (por ID).</p>
+      </div>
+
+      <div class="panel__tools">
+        <label class="field field--inline">
+          <span class="field__label">Buscar</span>
+          <input
+            class="field__control"
+            type="text"
+            [(ngModel)]="residentQuery"
+            placeholder="Nombre, habitación, ID…"
+          />
+        </label>
+
+        <button class="btn btn--ghost" type="button" (click)="loadAssignments()">↻ Refrescar</button>
+      </div>
+    </div>
+
+    <div class="panel__body">
+      <div class="bulk">
+        <div class="bulk__title">Aplicar en bloque (solo a los filtrados)</div>
+
+        <div class="bulk__row">
+          <label class="field">
+            <span class="field__label">Menú</span>
+            <select class="field__control" [(ngModel)]="bulkMenuId">
+              <option [ngValue]="null">Sin asignar</option>
+              <option *ngFor="let m of menus" [ngValue]="m.id">
+                #{{ m.id }} — {{ m.title }}
+              </option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Dieta (opcional)</span>
+            <input class="field__control" type="text" [(ngModel)]="bulkDiet" placeholder="Ej: Hiposódica, Diabética…" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Notas (opcional)</span>
+            <input class="field__control" type="text" [(ngModel)]="bulkNotes" placeholder="Ej: Sin lactosa / text. blanda" />
+          </label>
+
+          <button class="btn btn--primary" type="button" (click)="applyBulk()">
+            Aplicar
+          </button>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Residente</th>
+              <th>Habitación</th>
+              <th>Dieta</th>
+              <th>Menú semanal</th>
+              <th>Notas</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let r of filteredResidents()">
+              <td class="mono">#{{ r.id }}</td>
+              <td>
+                <div class="name">{{ residentLabel(r) }}</div>
+              </td>
+              <td class="mono">{{ r.habitacion || r.room || '—' }}</td>
+              <td>
+                <input
+                  class="mini"
+                  type="text"
+                  [(ngModel)]="assignDraft[r.id].dietType"
+                  placeholder="Opcional…"
+                />
+              </td>
+              <td>
+                <select class="mini" [(ngModel)]="assignDraft[r.id].menuId">
+                  <option [ngValue]="null">Sin asignar</option>
+                  <option *ngFor="let m of menus" [ngValue]="m.id">
+                    #{{ m.id }} — {{ m.title }}
+                  </option>
+                </select>
+              </td>
+              <td>
+                <input
+                  class="mini"
+                  type="text"
+                  [(ngModel)]="assignDraft[r.id].residentNotes"
+                  placeholder="Ej: sin azúcar"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actionsRow">
+        <button class="btn btn--glow" type="button" [disabled]="saving" (click)="saveAssignments()">
+          Guardar asignaciones
+        </button>
+        <div class="muted">Se guarda por semana: <span class="mono">{{ weekStartIso }}</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: SUMMARY ============ -->
+  <section class="panel" *ngIf="tab === 'summary' && canAssignMenus">
+    <div class="panel__head">
+      <div>
+        <div class="panel__eyebrow">Operativo</div>
+        <h2 class="panel__title">Resumen</h2>
+        <p class="panel__desc">Conteos rápidos para cocina.</p>
+      </div>
+
+      <div class="panel__tools">
+        <button class="btn btn--ghost" type="button" (click)="loadAssignments()">↻ Refrescar</button>
+      </div>
+    </div>
+
+    <div class="panel__body">
+      <div class="stats">
+        <div class="stat" *ngFor="let s of summaryStats">
+          <div class="stat__k">{{ s.value }}</div>
+          <div class="stat__v">{{ s.label }}</div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <div class="card__title">Asignaciones por menú</div>
+          <div class="card__list">
+            <div class="row" *ngFor="let x of menuAssignmentCounts()">
+              <div class="row__left">
+                <div class="row__name">#{{ x.menuId }} — {{ x.title }}</div>
+              </div>
+              <div class="row__right">
+                <span class="count">{{ x.count }}</span>
+              </div>
+            </div>
+
+            <div class="row row--empty" *ngIf="!menuAssignmentCounts().length">
+              No hay menús o asignaciones para esta semana.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__title">Alertas</div>
+          <div class="card__list">
+            <div class="row" *ngIf="summaryValue(1) > 0">
+              <div class="row__left">
+                <div class="row__name">⚠ Hay residentes sin menú asignado</div>
+                <div class="row__sub">Revisá la pestaña “Asignaciones”.</div>
+              </div>
+              <div class="row__right">
+                <span class="count count--warn">{{ summaryValue(1) }}</span>
+              </div>
+            </div>
+
+            <div class="row" *ngIf="summaryValue(1) === 0">
+              <div class="row__left">
+                <div class="row__name">✅ Todo asignado</div>
+                <div class="row__sub">No quedan residentes sin menú para la semana.</div>
+              </div>
+              <div class="row__right">
+                <span class="count count--ok">OK</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="muted">
+        Tip: si querés exportar a PDF/impresión, lo armamos después con endpoint “/cocina/exports”.
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MODAL: CREATE MENU ================= -->
+  <div class="modal" *ngIf="createOpen">
+    <div class="modal__back" (click)="closeCreateMenu()"></div>
+
+    <div class="modal__card" role="dialog" aria-modal="true">
+      <div class="modal__head">
+        <div>
+          <div class="modal__eyebrow">Nuevo</div>
+          <div class="modal__title">Crear menú semanal</div>
+        </div>
+        <button class="x" type="button" (click)="closeCreateMenu()">✕</button>
+      </div>
+
+      <div class="modal__body">
+        <label class="field">
+          <span class="field__label">Título</span>
+          <input class="field__control" type="text" [(ngModel)]="createDraft.title" placeholder="Ej: Semana 2 - Enero" />
+        </label>
+
+        <div class="grid2">
+          <label class="field">
+            <span class="field__label">Inicio (Lunes)</span>
+            <input class="field__control" type="date" [(ngModel)]="createDraft.weekStart" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Fin (Domingo)</span>
+            <input class="field__control" type="date" [(ngModel)]="createDraft.weekEnd" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field__label">Duplicar desde (opcional)</span>
+          <select class="field__control" [(ngModel)]="createDraft.duplicateFromMenuId">
+            <option [ngValue]="0">No duplicar</option>
+            <option *ngFor="let m of menus" [ngValue]="m.id">
+              #{{ m.id }} — {{ m.title }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" (click)="closeCreateMenu()">Cancelar</button>
+        <button class="btn btn--primary" type="button" [disabled]="saving" (click)="createMenu()">
+          Crear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CELL EDITOR ================= -->
+  <div class="modal" *ngIf="activeCell">
+    <div class="modal__back" (click)="closeCell()"></div>
+
+    <div class="modal__card modal__card--wide" role="dialog" aria-modal="true">
+      <div class="modal__head">
+        <div>
+          <div class="modal__eyebrow">Editar celda</div>
+          <div class="modal__title">
+            {{ activeDayLabel }} — {{ activeMealLabel }}
+          </div>
+        </div>
+        <button class="x" type="button" (click)="closeCell()">✕</button>
+      </div>
+
+      <div class="modal__body">
+        <div class="grid2">
+          <label class="field">
+            <span class="field__label">Plato principal</span>
+            <input class="field__control" type="text" [(ngModel)]="activeCellDraft.main" placeholder="Ej: Pollo al horno" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Acompañamiento</span>
+            <input class="field__control" type="text" [(ngModel)]="activeCellDraft.side" placeholder="Ej: Puré / Ensalada" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Bebida</span>
+            <input class="field__control" type="text" [(ngModel)]="activeCellDraft.drink" placeholder="Ej: Agua / Jugo" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Postre</span>
+            <input class="field__control" type="text" [(ngModel)]="activeCellDraft.dessert" placeholder="Ej: Fruta / Yogur" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field__label">Notas</span>
+          <textarea class="field__control" rows="3" [(ngModel)]="activeCellDraft.notes" placeholder="Textura, sal, azúcar, etc…"></textarea>
+        </label>
+
+        <div class="tagsBox">
+          <div class="tagsBox__head">
+            <div class="tagsBox__title">Tags</div>
+            <div class="tagsBox__hint">Click para agregar rápido</div>
+          </div>
+
+          <div class="tagsBox__quick">
+            <button class="chipBtn" type="button" (click)="addTagToActive('hiposódico')">hiposódico</button>
+            <button class="chipBtn" type="button" (click)="addTagToActive('diabético')">diabético</button>
+            <button class="chipBtn" type="button" (click)="addTagToActive('sin lactosa')">sin lactosa</button>
+            <button class="chipBtn" type="button" (click)="addTagToActive('blando')">blando</button>
+            <button class="chipBtn" type="button" (click)="addTagToActive('triturado')">triturado</button>
+            <button class="chipBtn" type="button" (click)="addTagToActive('sin gluten')">sin gluten</button>
+          </div>
+
+          <div class="tagsBox__list" *ngIf="activeCellDraft.tags.length">
+            <span class="tag tag--x" *ngFor="let t of activeCellDraft.tags">
+              {{ t }}
+              <button type="button" class="tag__x" (click)="removeTagFromActive(t)">×</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" (click)="closeCell()">Cerrar</button>
+
+        <button
+          class="btn btn--glow"
+          type="button"
+          [disabled]="saving"
+          (click)="applyActiveCellToGrid(); saveSelectedMenu(); closeCell()"
+        >
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+
 </section>

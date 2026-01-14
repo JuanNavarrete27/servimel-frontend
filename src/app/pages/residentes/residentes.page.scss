@@ -617,3 +617,135 @@ p {
   55%  { opacity: .95; }
   100% { transform: translateX(18%); opacity: 0; }
 }
+
+
+/* ✅ FIX: alinear el badge de estado (Estable) al centro del row,
+   aunque el row tenga 2 líneas (nombre + meta). */
+.row__main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+
+  column-gap: .75rem;
+  row-gap: .25rem;
+
+  /* mantenemos tus constraints */
+  min-width: 0;
+}
+
+/* el wrapper row__top deja de “mandar” el layout y sus hijos pasan a la grid */
+.row__top {
+  display: contents;
+}
+
+/* ubicaciones */
+.row__name {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.row__meta {
+  grid-column: 1;
+  grid-row: 2;
+  margin-top: 0; /* antes tenías .25rem; ahora lo controla row-gap */
+}
+
+.badge {
+  grid-column: 2;
+  grid-row: 1 / span 2; /* ✅ ocupa ambas filas y queda centrado */
+  justify-self: end;
+  align-self: center;
+}
+
+
+/* ============================================================
+   ✅ FIX RESPONSIVE MOBILE (sin romper el desktop)
+   - Mantiene "Abrir" a la derecha
+   - Badge baja debajo del nombre en pantallas chicas
+   - Meta y textos no se cortan raro
+============================================================ */
+
+/* tablets / móviles */
+@media (max-width: 900px) {
+  /* no queremos que el row se vuelva columna (tu regla actual lo hace) */
+  .row {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  .row__right {
+    width: auto !important;
+    justify-content: flex-end !important;
+  }
+
+  /* el main sigue en grid, pero acomodamos badge */
+  .row__main {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto; /* name + meta */
+    align-items: start;
+  }
+
+  .badge {
+    /* ✅ en mobile va pegado al meta para que no quede “flotando” */
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    margin-top: 0.05rem;
+  }
+
+  .row__name {
+    max-width: 100%;
+  }
+
+  /* la meta que pueda partir línea sin romper */
+  .row__meta {
+    flex-wrap: wrap;
+    gap: .4rem .5rem;
+  }
+}
+
+/* móviles chicos */
+@media (max-width: 520px) {
+  .row {
+    padding: .92rem .85rem;
+    gap: .75rem;
+  }
+
+  .row__main {
+    column-gap: .6rem;
+    row-gap: .22rem;
+  }
+
+  .row__name {
+    font-size: 1rem;
+  }
+
+  .badge {
+    font-size: .78rem;
+    padding: .34rem .62rem;
+  }
+
+  .row__right .go {
+    font-size: .92rem;
+  }
+
+  .row__right .arrow {
+    font-size: 1rem;
+  }
+}
+
+/* ultra chicos (ej: 360px) */
+@media (max-width: 380px) {
+  .row__meta .meta__sep {
+    display: none; /* evita “•” quedando sola */
+  }
+
+  .row__right .go {
+    display: none; /* queda solo la flecha si falta espacio */
+  }
+
+  .row__right .arrow {
+    font-size: 1.05rem;
+  }
+}
