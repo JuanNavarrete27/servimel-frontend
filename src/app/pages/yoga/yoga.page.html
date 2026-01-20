@@ -1,9 +1,6 @@
 <!-- src/app/pages/yoga/yoga.page.html -->
 <!-- ============================================================
      SERVIMEL — Yoga (Zen Holographic Dojo)
-     ✅ Distinto al resto: auroras + mandala + glass + zen neon
-     ✅ Manejo semanal por residente + secuencias reutilizables
-     ✅ Listo para conectar backend: /residentes y /servicios/yoga
 ============================================================ -->
 
 <div class="yoga-dojo">
@@ -32,23 +29,17 @@
 
     <div class="hero__right">
       <div class="weekbar">
-        <button class="btn btn--ghost" type="button" (click)="prevWeek()">
-          ← Semana
-        </button>
+        <button class="btn btn--ghost" type="button" (click)="prevWeek()">← Semana</button>
 
         <div class="weekbar__center">
           <div class="weekbar__range">{{ weekRangeLabel() }}</div>
           <div class="weekbar__meta">
             <span class="pill">Semana: {{ weekKey }}</span>
-            <button class="pill pill--click" type="button" (click)="goThisWeek()">
-              Ir a hoy
-            </button>
+            <button class="pill pill--click" type="button" (click)="goThisWeek()">Ir a hoy</button>
           </div>
         </div>
 
-        <button class="btn btn--ghost" type="button" (click)="nextWeek()">
-          Semana →
-        </button>
+        <button class="btn btn--ghost" type="button" (click)="nextWeek()">Semana →</button>
       </div>
 
       <div class="status" *ngIf="errorMsg">
@@ -77,6 +68,7 @@
           >
             Todos
           </button>
+
           <button
             type="button"
             class="chip"
@@ -85,6 +77,7 @@
           >
             Con plan
           </button>
+
           <button
             type="button"
             class="chip"
@@ -306,7 +299,8 @@
               </button>
             </div>
 
-            <form class="form" (ngSubmit)="saveDay()">
+            <!-- ✅ FIX CRÍTICO -->
+            <form class="form" [formGroup]="dayForm" (ngSubmit)="saveDay()">
               <div class="form__grid">
                 <label class="field">
                   <span class="field__k">Hora</span>
@@ -321,7 +315,10 @@
                 <label class="field field--wide">
                   <span class="field__k">Foco</span>
                   <input class="input" type="text" maxlength="60" formControlName="focus" />
-                  <span class="field__hint" *ngIf="dayForm.controls.focus.touched && dayForm.controls.focus.invalid">
+                  <span
+                    class="field__hint"
+                    *ngIf="dayForm.controls.focus.touched && dayForm.controls.focus.invalid"
+                  >
                     Requerido (máx 60).
                   </span>
                 </label>
@@ -347,21 +344,20 @@
 
                 <label class="field field--wide">
                   <span class="field__k">Notas</span>
-                  <textarea class="input input--ta" rows="3" maxlength="260" formControlName="notes"
-                    placeholder="Dolor, respiración, adaptación, contraindicaciones…"></textarea>
-                  <span class="field__hint">
-                    {{ (dayForm.value.notes || '').length }} / 260
-                  </span>
+                  <textarea
+                    class="input input--ta"
+                    rows="3"
+                    maxlength="260"
+                    formControlName="notes"
+                    placeholder="Dolor, respiración, adaptación, contraindicaciones…"
+                  ></textarea>
+                  <span class="field__hint">{{ (dayForm.value.notes || '').length }} / 260</span>
                 </label>
               </div>
 
               <div class="form__actions">
-                <button class="btn btn--primary" type="submit">
-                  Guardar
-                </button>
-                <button class="btn btn--ghost" type="button" (click)="closeEditor()">
-                  Cancelar
-                </button>
+                <button class="btn btn--primary" type="submit">Guardar</button>
+                <button class="btn btn--ghost" type="button" (click)="closeEditor()">Cancelar</button>
               </div>
             </form>
 
@@ -397,11 +393,7 @@
                   </div>
 
                   <div class="seqcard__actions">
-                    <button
-                      class="btn btn--ghost btn--sm"
-                      type="button"
-                      (click)="dayForm.patchValue({ sequenceId: s.id })"
-                    >
+                    <button class="btn btn--ghost btn--sm" type="button" (click)="dayForm.patchValue({ sequenceId: s.id })">
                       Usar
                     </button>
 
@@ -419,7 +411,7 @@
               </div>
             </div>
 
-            <!-- CATALOG (optional) -->
+            <!-- CATALOG -->
             <div class="catalog">
               <div class="catalog__head">
                 <div>
@@ -439,7 +431,7 @@
                   type="text"
                   placeholder="Filtrar catálogo…"
                   [(ngModel)]="catalogQuery"
-                  [ngModelOptions]="{standalone:true}"
+                  [ngModelOptions]="{ standalone:true }"
                 />
               </div>
 

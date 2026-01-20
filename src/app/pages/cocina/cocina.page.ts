@@ -1,24 +1,24 @@
 // src/app/pages/cocina/cocina.page.ts
 // ============================================================
 // SERVIMEL — Cocina (BACKEND REAL)
-// ✅ API_CONFIG.baseUrl (NO hardcode "/api")
+// ✅ API_CONFIG.baseUrl (NO hardcode "/api" global)
 // ✅ styleUrls (no styleUrl)
 // ✅ unwrapApi unificado (core/utils/api-unwrap)
 // ✅ NO ResidentesService (carga residentes por HttpClient /residentes)
 // ✅ Robustez:
-//    - Soporta respuestas {data}, {rows}, {items}, array directo
-//    - Soporta menu.grid como objeto o JSON string
-//    - Rellena celdas faltantes (7 días x 4 comidas)
-// ✅ Envío/recepción REAL:
-//    - GET    /cocina/menus?weekStart=YYYY-MM-DD
-//    - GET    /cocina/menus/:id
-//    - POST   /cocina/menus
-//    - PUT    /cocina/menus/:id
-//    - POST   /cocina/menus/:id/publish
-//    - GET    /cocina/assignments?weekStart=YYYY-MM-DD
-//    - PUT    /cocina/assignments
-//    - GET    /cocina/viewer?residentId=ID&weekStart=YYYY-MM-DD
-//    - GET    /residentes
+//    - Soporta respuestas {menus}, {assignments}, {data}, {rows}, {items}, array directo
+//    - Soporta menuJson como objeto o JSON string
+//    - Convierte menuJson ⇄ grid (7 días x 4 comidas)
+// ✅ Envío/recepción REAL (COCINA VA CON /api):
+//    - GET    /api/cocina/menus?weekStart=YYYY-MM-DD
+//    - GET    /api/cocina/menus/:id
+//    - POST   /api/cocina/menus
+//    - PUT    /api/cocina/menus/:id
+//    - POST   /api/cocina/menus/:id/publish
+//    - GET    /api/cocina/assignments?weekStart=YYYY-MM-DD
+//    - PUT    /api/cocina/assignments   ✅ (FIX: body { assignments: [] })
+//    - GET    /api/cocina/view?residentId=ID&weekStart=YYYY-MM-DD
+//    - GET    /residentes   (SIN /api)
 // ============================================================
 
 import { Component, OnInit } from '@angular/core';
@@ -60,7 +60,7 @@ interface KitchenMenu {
   title: string;
   status: 'draft' | 'published';
   weekStart: string; // yyyy-mm-dd
-  weekEnd: string;   // yyyy-mm-dd
+  weekEnd: string; // yyyy-mm-dd
   grid: MenuGrid;
   updatedAt?: string;
 }
@@ -114,9 +114,9 @@ export class CocinaPage implements OnInit {
 
   tab: 'view' | 'menu' | 'assign' | 'summary' = 'view';
 
-  canEditMenus = false;     // cocinero/admin
-  canAssignMenus = false;   // admin/cocinero
-  canPickResident = false;  // admin/medico/enfermeria
+  canEditMenus = false; // cocinero/admin
+  canAssignMenus = false; // admin/cocinero
+  canPickResident = false; // admin/medico/enfermeria
 
   // ============================================================
   // Semana (Monday-based)
@@ -141,7 +141,7 @@ export class CocinaPage implements OnInit {
   selectedMenuId: number | null = null;
   selectedMenu: KitchenMenu | null = null;
 
-  // Draft editable (lo que el user modifica antes de guardar)
+  // Draft editable
   private selectedMenuDraft: KitchenMenu | null = null;
 
   viewerResidentId: number | null = null;
@@ -168,13 +168,49 @@ export class CocinaPage implements OnInit {
   activeCell: ActiveCell | null = null;
   activeCellDraft: MenuCell = this.defaultCell();
 
-  // Loading counter para evitar “parpadeos”
+  // Loading counter
   private loadingCount = 0;
 
   constructor(
     private http: HttpClient,
-    private auth: AuthService
+    private auth: AuthService,
   ) {}
+
+  // ============================================================
+  // ✅ URL Helpers (FIX REAL)
+  // - Residentes: SIN /api
+  // - Cocina: CON /api/cocina
+  // ============================================================
+  private baseUrl(): string {
+    return String(API_CONFIG?.baseUrl || '').replace(/\/+$/, '');
+  }
+
+  private join(base: string, path: string): string {
+    const b = (base || '').replace(/\/+$/, '');
+    const p = (path || '').replace(/^\/+/, '');
+    return `${b}/${p}`;
+  }
+
+  private residentesUrl(path: string): string {
+    // ✅ SIN /api
+    const normalized = (path || '').startsWith('/') ? path : `/${path}`;
+    return this.join(this.baseUrl(), normalized);
+  }
+
+  private cocinaUrl(path: string): string {
+    // ✅ CON /api SOLO para Cocina (como en Render)
+    const clean = (path || '').trim();
+    const p = clean.startsWith('/') ? clean : `/${clean}`;
+    return this.join(this.baseUrl(), `/api/cocina${p}`);
+  }
+
+  private safeUnwrap<T>(res: any): any {
+    try {
+      return unwrapApi<T>(res as ApiResponse<T>);
+    } catch {
+      return res;
+    }
+  }
 
   // ============================================================
   // Computed simple para template
@@ -184,7 +220,7 @@ export class CocinaPage implements OnInit {
   }
 
   get roleLabel(): string {
-    const r = String(this.role || 'user').trim();
+    const r = String(this.role || '').trim();
     return r || 'user';
   }
 
@@ -197,12 +233,35 @@ export class CocinaPage implements OnInit {
   // ============================================================
   // Role / Permisos (unificado y tolerante)
   // ============================================================
+  private normalizeRole(raw: any): Role {
+    const v = String(raw || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+
+    if (!v) return 'user';
+
+    // aliases comunes
+    if (v === 'administrador' || v === 'administrator') return 'admin';
+    if (v === 'admin') return 'admin';
+
+    if (v === 'doctor') return 'medico';
+    if (v === 'medico') return 'medico';
+
+    if (v === 'enfermeria' || v === 'nurse' || v === 'nursing') return 'enfermeria';
+    if (v === 'cocinero' || v === 'kitchen' || v === 'chef') return 'cocinero';
+
+    return v as Role;
+  }
+
   private initRole(): void {
     const fromAuth = this.tryReadRoleFromAuth();
     const fromLs = this.tryReadRoleFromLocalStorage();
-    this.role = (fromAuth || fromLs || 'user') as Role;
+    this.role = this.normalizeRole(fromAuth || fromLs || 'user');
 
     const rr = String(this.role || '').trim().toLowerCase().replace(/\s+/g, '_');
+
+    // ✅ Política REAL: admin + cocinero editan/assignan
     this.canEditMenus = rr === 'cocinero' || rr === 'admin';
     this.canAssignMenus = rr === 'cocinero' || rr === 'admin';
     this.canPickResident = rr === 'admin' || rr === 'medico' || rr === 'enfermeria';
@@ -222,9 +281,15 @@ export class CocinaPage implements OnInit {
         null;
 
       const r =
-        (u?.rol || u?.role || anyAuth?.userRole || anyAuth?.role || anyAuth?.getRole?.() || anyAuth?.getUserRole?.() || '') as Role;
+        (u?.rol ||
+          u?.role ||
+          anyAuth?.userRole ||
+          anyAuth?.role ||
+          anyAuth?.getRole?.() ||
+          anyAuth?.getUserRole?.() ||
+          '') as Role;
 
-      return r || 'user';
+      return (r || 'user') as Role;
     } catch {
       return 'user';
     }
@@ -237,6 +302,7 @@ export class CocinaPage implements OnInit {
         const raw = localStorage.getItem(k);
         if (!raw) continue;
 
+        // rol guardado como string simple
         if (raw.length < 80 && !raw.trim().startsWith('{')) return raw as Role;
 
         const obj = JSON.parse(raw);
@@ -274,7 +340,6 @@ export class CocinaPage implements OnInit {
       return { label: this.dayLabel(i), iso: this.toIso(d) };
     });
 
-    // si cambia la semana, cerramos modales de celda
     this.closeCell();
   }
 
@@ -300,7 +365,6 @@ export class CocinaPage implements OnInit {
   }
 
   private async onWeekChanged(): Promise<void> {
-    // Real: recarga todo lo dependiente de semana
     await this.loadMenus();
     await this.loadAssignments();
     if (this.viewerResidentId) await this.loadViewer();
@@ -319,12 +383,10 @@ export class CocinaPage implements OnInit {
       await this.loadMenus();
       await this.loadAssignments();
 
-      // si estamos en view y ya hay resident seleccionado
       if (this.viewerResidentId) await this.loadViewer();
-
       this.recomputeSummary();
     } catch {
-      // errorMsg ya se setea dentro de los loaders
+      // errorMsg se setea en loaders
     } finally {
       this.setLoading(false);
     }
@@ -337,33 +399,39 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
-  // Residents (REAL) — GET /residentes
+  // Residents (REAL) — GET /residentes  ✅ SIN /api
   // ============================================================
   private async loadResidents(): Promise<void> {
     this.errorMsg = '';
     this.setLoading(true);
 
     try {
-      const url = `${API_CONFIG.baseUrl}/residentes`;
-      const res = await firstValueFrom(this.http.get<ApiResponse<any>>(url));
-      const data = unwrapApi<any>(res);
+      const url = this.residentesUrl('/residentes');
+      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
+      const data = this.safeUnwrap<any>(res);
 
       const arr: any[] =
-        Array.isArray(data) ? data :
-        Array.isArray(data?.items) ? data.items :
-        Array.isArray(data?.rows) ? data.rows :
-        Array.isArray(data?.data) ? data.data :
-        [];
+        Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.rows)
+              ? data.rows
+              : Array.isArray(data?.data)
+                ? data.data
+                : [];
 
-      this.residents = (arr || []).map((r: any) => ({
-        id: Number(r?.id),
-        nombre: String(r?.nombre ?? r?.name ?? r?.first_name ?? '').trim(),
-        habitacion: (String(r?.habitacion ?? r?.room ?? '').trim() || undefined) as any,
-        first_name: r?.first_name,
-        last_name: r?.last_name,
-        apellido: r?.apellido,
-        room: r?.room,
-      })) as Resident[];
+      this.residents = (arr || [])
+        .map((r: any) => ({
+          id: Number(r?.id),
+          nombre: String(r?.nombre ?? r?.name ?? r?.first_name ?? '').trim(),
+          habitacion: (String(r?.habitacion ?? r?.room ?? '').trim() || undefined) as any,
+          first_name: r?.first_name,
+          last_name: r?.last_name,
+          apellido: r?.apellido,
+          room: r?.room,
+        }))
+        .filter((r: Resident) => Number.isFinite(r.id)) as Resident[];
 
       this.seedAssignDraft();
     } catch {
@@ -376,33 +444,37 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
-  // Menús (REAL)
+  // Menús (REAL) ✅ /api/cocina/menus
   // ============================================================
   private async loadMenus(): Promise<void> {
     this.errorMsg = '';
     this.setLoading(true);
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/menus?weekStart=${encodeURIComponent(this.weekStartIso)}`;
-      const res = await firstValueFrom(this.http.get<ApiResponse<any>>(url));
-      const un = unwrapApi<any>(res);
+      const url = this.cocinaUrl(`/menus?weekStart=${encodeURIComponent(this.weekStartIso)}`);
+      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
+      const un = this.safeUnwrap<any>(res) || res;
 
-      const rows: any[] =
-        Array.isArray(un) ? un :
-        Array.isArray(un?.rows) ? un.rows :
-        Array.isArray(un?.data) ? un.data :
-        Array.isArray(un?.items) ? un.items :
-        [];
+      const list: any[] =
+        Array.isArray(un)
+          ? un
+          : Array.isArray(un?.menus)
+            ? un.menus
+            : Array.isArray(un?.rows)
+              ? un.rows
+              : Array.isArray(un?.data)
+                ? un.data
+                : Array.isArray(un?.items)
+                  ? un.items
+                  : [];
 
-      const mapped = (rows || []).map((m: any) => this.normalizeMenu(m));
+      const mapped = (list || []).map((m: any) => this.normalizeMenu(m));
       this.menus = mapped;
 
-      // Mantener selección coherente
       if (!this.selectedMenuId) {
         if (this.menus.length) this.selectMenu(this.menus[0].id, false);
         else this.selectMenu(null, false);
       } else {
-        // si la selección no existe en la semana, elegimos primero
         const exists = this.menus.some((x) => x.id === this.selectedMenuId);
         if (!exists) {
           if (this.menus.length) this.selectMenu(this.menus[0].id, false);
@@ -427,11 +499,10 @@ export class CocinaPage implements OnInit {
     this.setLoading(true);
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/menus/${menuId}`;
-      const res = await firstValueFrom(this.http.get<ApiResponse<any>>(url));
-      const un = unwrapApi<any>(res);
+      const url = this.cocinaUrl(`/menus/${menuId}`);
+      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
+      const un = this.safeUnwrap<any>(res) || res;
 
-      // soporta {menu} o objeto directo
       const raw = un?.menu ?? un?.data ?? un ?? null;
       if (!raw) return null;
 
@@ -445,25 +516,31 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
-  // Assignments (REAL)
+  // Assignments (REAL) ✅ /api/cocina/assignments
   // ============================================================
   async loadAssignments(): Promise<void> {
     this.errorMsg = '';
     this.setLoading(true);
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/assignments?weekStart=${encodeURIComponent(this.weekStartIso)}`;
-      const res = await firstValueFrom(this.http.get<ApiResponse<any>>(url));
-      const un = unwrapApi<any>(res);
+      const url = this.cocinaUrl(`/assignments?weekStart=${encodeURIComponent(this.weekStartIso)}`);
+      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
+      const un = this.safeUnwrap<any>(res) || res;
 
-      const rows: any[] =
-        Array.isArray(un) ? un :
-        Array.isArray(un?.rows) ? un.rows :
-        Array.isArray(un?.data) ? un.data :
-        Array.isArray(un?.items) ? un.items :
-        [];
+      const list: any[] =
+        Array.isArray(un)
+          ? un
+          : Array.isArray(un?.assignments)
+            ? un.assignments
+            : Array.isArray(un?.rows)
+              ? un.rows
+              : Array.isArray(un?.data)
+                ? un.data
+                : Array.isArray(un?.items)
+                  ? un.items
+                  : [];
 
-      this.assignments = (rows || []).map((a: any) => this.normalizeAssignment(a));
+      this.assignments = (list || []).map((a: any) => this.normalizeAssignment(a));
       this.seedAssignDraftFromAssignments();
       this.recomputeSummary();
     } catch {
@@ -477,7 +554,7 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
-  // Viewer (REAL) — GET /cocina/viewer
+  // Viewer (REAL) ✅ /api/cocina/view
   // ============================================================
   async loadViewer(): Promise<void> {
     if (!this.viewerResidentId) {
@@ -489,11 +566,12 @@ export class CocinaPage implements OnInit {
     this.setLoading(true);
 
     try {
-      const url =
-        `${API_CONFIG.baseUrl}/cocina/viewer?residentId=${encodeURIComponent(this.viewerResidentId)}&weekStart=${encodeURIComponent(this.weekStartIso)}`;
+      const url = this.cocinaUrl(
+        `/view?residentId=${encodeURIComponent(this.viewerResidentId)}&weekStart=${encodeURIComponent(this.weekStartIso)}`,
+      );
 
-      const res = await firstValueFrom(this.http.get<ApiResponse<any>>(url));
-      const data = unwrapApi<any>(res) || res;
+      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
+      const data = this.safeUnwrap<any>(res) || res;
 
       const assignmentRaw = data?.assignment ?? data?.asignacion ?? null;
       const menuRaw = data?.menu ?? null;
@@ -503,9 +581,11 @@ export class CocinaPage implements OnInit {
 
       this.viewerResult = { assignment, menu };
     } catch {
-      // fallback “inteligente” con datos ya cargados (sin mock inventado)
       const a =
-        this.assignments.find((x) => x.residentId === this.viewerResidentId && x.weekStart === this.weekStartIso) || null;
+        this.assignments.find(
+          (x) => x.residentId === this.viewerResidentId && x.weekStart === this.weekStartIso,
+        ) || null;
+
       const menu = a?.menuId ? this.menus.find((m) => m.id === a.menuId) || null : null;
       this.viewerResult = { assignment: a, menu };
       this.errorMsg = 'No se pudo cargar viewer desde el backend (usando datos locales ya cargados).';
@@ -546,7 +626,6 @@ export class CocinaPage implements OnInit {
         if (!fresh) return;
         this.selectedMenu = fresh;
         this.selectedMenuDraft = this.cloneMenu(fresh);
-        // sincronizar array
         this.menus = this.menus.map((x) => (x.id === fresh.id ? fresh : x));
       })();
     }
@@ -566,23 +645,39 @@ export class CocinaPage implements OnInit {
     this.createOpen = false;
   }
 
+  // ✅ FIX: ahora mostramos el error real del backend (sin [object Object])
+  private extractBackendErrorMessage(err: any): string {
+    try {
+      const raw = err?.error?.message ?? err?.error?.error ?? err?.message ?? '';
+      if (!raw) return '';
+      if (typeof raw === 'string') return raw.trim();
+      return JSON.stringify(raw);
+    } catch {
+      return '';
+    }
+  }
+
   async createMenu(): Promise<void> {
     if (!this.canEditMenus) return;
 
     this.saving = true;
     this.errorMsg = '';
 
+    // ✅ aseguramos formato YYYY-MM-DD
+    const weekStart = this.isoDateOnly(this.createDraft.weekStart);
+    const weekEnd = this.isoDateOnly(this.createDraft.weekEnd);
+
     const payload = {
-      title: (this.createDraft.title || '').trim() || `Semana ${this.createDraft.weekStart}`,
-      weekStart: this.createDraft.weekStart,
-      weekEnd: this.createDraft.weekEnd,
+      title: (this.createDraft.title || '').trim() || `Semana ${weekStart}`,
+      weekStart,
+      weekEnd,
       duplicateFromMenuId: this.createDraft.duplicateFromMenuId || 0,
     };
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/menus`;
-      const res = await firstValueFrom(this.http.post<ApiResponse<any>>(url, payload));
-      const un = unwrapApi<any>(res);
+      const url = this.cocinaUrl('/menus');
+      const res = await firstValueFrom(this.http.post<ApiResponse<any> | any>(url, payload));
+      const un = this.safeUnwrap<any>(res) || res;
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
       if (!raw) throw new Error('No menu returned');
@@ -590,16 +685,18 @@ export class CocinaPage implements OnInit {
       const created = this.normalizeMenu(raw);
 
       this.menus = [created, ...this.menus.filter((x) => x.id !== created.id)];
-      this.selectMenu(created.id, false);
+      this.selectMenu(created.id, true);
       this.createOpen = false;
 
-      // recargar para quedar igual al server
       await this.loadMenus();
       await this.loadAssignments();
       if (this.viewerResidentId) await this.loadViewer();
       this.recomputeSummary();
-    } catch {
-      this.errorMsg = 'No se pudo crear el menú en el backend.';
+    } catch (err: any) {
+      const detail = this.extractBackendErrorMessage(err);
+      this.errorMsg = detail
+        ? `No se pudo crear el menú en el backend: ${detail}`
+        : 'No se pudo crear el menú en el backend.';
     } finally {
       this.saving = false;
     }
@@ -612,26 +709,44 @@ export class CocinaPage implements OnInit {
     this.saving = true;
     this.errorMsg = '';
 
-    // Asegurar que grid esté completo antes de enviar
-    const payload = this.normalizeMenu(this.selectedMenuDraft);
+    // ✅ FIX CRÍTICO: weekStart/weekEnd SIEMPRE YYYY-MM-DD
+    const weekStart = this.isoDateOnly(this.selectedMenuDraft.weekStart);
+    const weekEnd = this.isoDateOnly(this.selectedMenuDraft.weekEnd);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+      this.errorMsg = `weekStart inválido en frontend: "${this.selectedMenuDraft.weekStart}"`;
+      this.saving = false;
+      return;
+    }
+
+    const payload = {
+      id: this.selectedMenuDraft.id,
+      title: this.selectedMenuDraft.title,
+      status: this.selectedMenuDraft.status,
+      weekStart,
+      weekEnd,
+      menuJson: this.gridToMenuJson(this.selectedMenuDraft.grid, weekStart),
+    };
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/menus/${this.selectedMenuId}`;
-      const res = await firstValueFrom(this.http.put<ApiResponse<any>>(url, payload));
-      const un = unwrapApi<any>(res);
+      const url = this.cocinaUrl(`/menus/${this.selectedMenuId}`);
+      const res = await firstValueFrom(this.http.put<ApiResponse<any> | any>(url, payload));
+      const un = this.safeUnwrap<any>(res) || res;
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
-      const saved = raw ? this.normalizeMenu(raw) : payload;
+      const saved = raw ? this.normalizeMenu(raw) : this.normalizeMenu(payload);
 
       this.selectedMenu = saved;
       this.selectedMenuDraft = this.cloneMenu(saved);
       this.menus = this.menus.map((m) => (m.id === saved.id ? saved : m));
 
-      // server truth
       await this.loadMenus();
       this.recomputeSummary();
-    } catch {
-      this.errorMsg = 'No se pudo guardar el menú en el backend.';
+    } catch (err: any) {
+      const detail = this.extractBackendErrorMessage(err);
+      this.errorMsg = detail
+        ? `No se pudo guardar el menú en el backend: ${detail}`
+        : 'No se pudo guardar el menú en el backend.';
     } finally {
       this.saving = false;
     }
@@ -645,9 +760,9 @@ export class CocinaPage implements OnInit {
     this.errorMsg = '';
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/menus/${this.selectedMenuId}/publish`;
-      const res = await firstValueFrom(this.http.post<ApiResponse<any>>(url, {}));
-      const un = unwrapApi<any>(res);
+      const url = this.cocinaUrl(`/menus/${this.selectedMenuId}/publish`);
+      const res = await firstValueFrom(this.http.post<ApiResponse<any> | any>(url, {}));
+      const un = this.safeUnwrap<any>(res) || res;
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
       const published = raw ? this.normalizeMenu(raw) : null;
@@ -658,13 +773,15 @@ export class CocinaPage implements OnInit {
         this.menus = this.menus.map((m) => (m.id === published.id ? published : m));
       }
 
-      // server truth
       await this.loadMenus();
       await this.loadAssignments();
       if (this.viewerResidentId) await this.loadViewer();
       this.recomputeSummary();
-    } catch {
-      this.errorMsg = 'No se pudo publicar el menú en el backend.';
+    } catch (err: any) {
+      const detail = this.extractBackendErrorMessage(err);
+      this.errorMsg = detail
+        ? `No se pudo publicar el menú en el backend: ${detail}`
+        : 'No se pudo publicar el menú en el backend.';
     } finally {
       this.saving = false;
     }
@@ -679,7 +796,14 @@ export class CocinaPage implements OnInit {
   // Celdas
   // ============================================================
   getCell(dayIndex: number, meal: MealKey): MenuCell {
-    const menu = this.viewerResult?.menu ? this.viewerResult.menu : (this.selectedMenuDraft || this.selectedMenu);
+    let menu: KitchenMenu | null = null;
+
+    if (this.tab === 'view' && this.viewerResidentId && this.viewerResult?.menu) {
+      menu = this.viewerResult.menu;
+    } else {
+      menu = this.selectedMenuDraft || this.selectedMenu;
+    }
+
     if (!menu) return this.defaultCell();
 
     const key = this.cellKey(dayIndex, meal);
@@ -809,14 +933,20 @@ export class CocinaPage implements OnInit {
     });
 
     try {
-      const url = `${API_CONFIG.baseUrl}/cocina/assignments`;
-      await firstValueFrom(this.http.put<ApiResponse<any>>(url, { weekStart, rows }));
-      // server truth
+      // ✅ FIX REAL: Backend espera "assignments" como ARRAY
+      // Antes: { weekStart, rows }
+      // Ahora: { weekStart, assignments: rows }
+      const url = this.cocinaUrl('/assignments');
+      await firstValueFrom(this.http.put<ApiResponse<any> | any>(url, { weekStart, assignments: rows }));
+
       await this.loadAssignments();
       if (this.viewerResidentId) await this.loadViewer();
       this.recomputeSummary();
-    } catch {
-      this.errorMsg = 'No se pudieron guardar asignaciones en el backend.';
+    } catch (err: any) {
+      const detail = this.extractBackendErrorMessage(err);
+      this.errorMsg = detail
+        ? `No se pudieron guardar asignaciones en el backend: ${detail}`
+        : 'No se pudieron guardar asignaciones en el backend.';
     } finally {
       this.saving = false;
     }
@@ -885,17 +1015,15 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
-  // Normalizadores (clave para “acorde al backend”)
+  // Normalizadores (ACORDE BACKEND: usa menuJson)
   // ============================================================
   private normalizeAssignment(a: any): Assignment {
-    // tolera snake_case/camelCase
     const residentId = Number(a?.residentId ?? a?.resident_id ?? a?.residenteId ?? a?.residente_id);
-    const weekStart = String(a?.weekStart ?? a?.week_start ?? this.weekStartIso);
-    const menuIdRaw = a?.menuId ?? a?.menu_id ?? a?.menu ?? null;
+    const weekStart = this.isoDateOnly(a?.weekStart ?? a?.week_start ?? this.weekStartIso);
 
-    const menuId = menuIdRaw === null || menuIdRaw === undefined || menuIdRaw === ''
-      ? null
-      : Number(menuIdRaw);
+    const menuIdRaw = a?.menuId ?? a?.menu_id ?? a?.menu ?? null;
+    const menuId =
+      menuIdRaw === null || menuIdRaw === undefined || menuIdRaw === '' ? null : Number(menuIdRaw);
 
     return {
       residentId,
@@ -911,34 +1039,38 @@ export class CocinaPage implements OnInit {
     const title = String(m?.title ?? m?.titulo ?? `Semana ${this.weekStartIso}`).trim();
     const statusRaw = String(m?.status ?? m?.estado ?? 'draft').toLowerCase();
     const status: 'draft' | 'published' = statusRaw === 'published' ? 'published' : 'draft';
-    const weekStart = String(m?.weekStart ?? m?.week_start ?? this.weekStartIso);
-    const weekEnd = String(m?.weekEnd ?? m?.week_end ?? this.weekEndIso);
-    const updatedAt = (m?.updatedAt ?? m?.updated_at ?? m?.updatedAtISO ?? m?.updated_at_iso) ? String(m?.updatedAt ?? m?.updated_at ?? m?.updatedAtISO ?? m?.updated_at_iso) : undefined;
 
-    let grid: any = m?.grid ?? m?.menuGrid ?? m?.menu_grid ?? {};
-    if (typeof grid === 'string') {
-      try { grid = JSON.parse(grid); } catch { grid = {}; }
-    }
-    if (!grid || typeof grid !== 'object') grid = {};
+    // ✅ weekStart/weekEnd siempre YYYY-MM-DD
+    const weekStart = this.isoDateOnly(m?.weekStart ?? m?.week_start ?? this.weekStartIso);
+    const weekEnd = this.isoDateOnly(m?.weekEnd ?? m?.week_end ?? this.weekEndIso);
 
-    // rellena 7x4 y normaliza cada celda
-    const filled: MenuGrid = {};
-    for (let di = 0; di < 7; di++) {
-      for (const mt of this.mealTypes) {
-        const key = this.cellKey(di, mt.key);
-        const cellRaw = grid[key] ?? grid?.[String(key)] ?? null;
-        filled[key] = this.normalizeCell(cellRaw);
+    const updatedAt =
+      m?.updatedAt ?? m?.updated_at ?? m?.updatedAtISO ?? m?.updated_at_iso
+        ? String(m?.updatedAt ?? m?.updated_at ?? m?.updatedAtISO ?? m?.updated_at_iso)
+        : undefined;
+
+    // ✅ Backend usa menuJson (puede venir string u objeto)
+    let menuJson: any = m?.menuJson ?? m?.menu_json ?? null;
+    if (typeof menuJson === 'string') {
+      try {
+        menuJson = JSON.parse(menuJson);
+      } catch {
+        menuJson = null;
       }
     }
 
-    return { id, title, status, weekStart, weekEnd, grid: filled, updatedAt };
+    const grid = this.menuJsonToGrid(menuJson);
+
+    return { id, title, status, weekStart, weekEnd, grid, updatedAt };
   }
 
   private normalizeCell(c: any): MenuCell {
     const base = this.defaultCell();
     if (!c || typeof c !== 'object') return base;
 
-    const tags = Array.isArray(c.tags) ? c.tags.map((t: any) => String(t).trim()).filter(Boolean) : [];
+    const tags = Array.isArray(c.tags)
+      ? c.tags.map((t: any) => String(t).trim()).filter(Boolean)
+      : [];
 
     return {
       main: String(c.main ?? '').trim(),
@@ -951,6 +1083,102 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
+  // ✅ Conversión Backend menuJson ⇄ UI grid
+  // ============================================================
+  private mealKeyToBackend(meal: MealKey): 'desayuno' | 'almuerzo' | 'merienda' | 'cena' {
+    if (meal === 'breakfast') return 'desayuno';
+    if (meal === 'lunch') return 'almuerzo';
+    if (meal === 'snack') return 'merienda';
+    return 'cena';
+  }
+
+  private backendToMealKey(x: string): MealKey | null {
+    const v = String(x || '').toLowerCase().trim();
+    if (v === 'desayuno') return 'breakfast';
+    if (v === 'almuerzo') return 'lunch';
+    if (v === 'merienda') return 'snack';
+    if (v === 'cena') return 'dinner';
+    return null;
+  }
+
+  private menuJsonToGrid(menuJson: any): MenuGrid {
+    const filled: MenuGrid = {};
+    for (let di = 0; di < 7; di++) {
+      for (const mt of this.mealTypes) {
+        const k = this.cellKey(di, mt.key);
+        filled[k] = this.defaultCell();
+      }
+    }
+
+    if (!menuJson || typeof menuJson !== 'object') return filled;
+
+    // Caso A) menuJson.grid ya viene como grid del frontend
+    if (menuJson?.grid && typeof menuJson.grid === 'object') {
+      const g = menuJson.grid;
+      for (let di = 0; di < 7; di++) {
+        for (const mt of this.mealTypes) {
+          const k = this.cellKey(di, mt.key);
+          const raw = g[k] ?? g[String(k)] ?? null;
+          filled[k] = this.normalizeCell(raw);
+        }
+      }
+      return filled;
+    }
+
+    // Caso B) schema kitchen-v1 (days[dayIndex].meals.desayuno/almuerzo/...)
+    const days = Array.isArray(menuJson?.days) ? menuJson.days : [];
+    for (const d of days) {
+      const dayIndex = Number(d?.dayIndex);
+      if (!Number.isFinite(dayIndex) || dayIndex < 0 || dayIndex > 6) continue;
+
+      const meals = d?.meals && typeof d.meals === 'object' ? d.meals : {};
+      for (const mealBackendKey of Object.keys(meals)) {
+        const mk = this.backendToMealKey(mealBackendKey);
+        if (!mk) continue;
+
+        const k = this.cellKey(dayIndex, mk);
+        filled[k] = this.normalizeCell(meals[mealBackendKey]);
+      }
+    }
+
+    return filled;
+  }
+
+  private gridToMenuJson(grid: MenuGrid, weekStart: string): any {
+    const ws = this.isoDateOnly(weekStart);
+
+    const days = Array.from({ length: 7 }).map((_, dayIndex) => {
+      const meals: any = {};
+      for (const mt of this.mealTypes) {
+        const bk = this.mealKeyToBackend(mt.key);
+        const key = this.cellKey(dayIndex, mt.key);
+        meals[bk] = this.normalizeCell(grid?.[key] || this.defaultCell());
+      }
+
+      const dateIso = this.addDaysIso(ws, dayIndex);
+      return { dayIndex, dateIso, meals };
+    });
+
+    return {
+      schema: 'kitchen-v1',
+      weekStart: ws,
+      mealKeys: ['desayuno', 'almuerzo', 'merienda', 'cena'],
+      days,
+    };
+  }
+
+  private addDaysIso(iso: string, days: number): string {
+    const base = this.isoDateOnly(iso);
+    const [y, m, d] = String(base || '').split('-').map((n) => Number(n));
+    const dt = new Date(y, (m || 1) - 1, d || 1);
+    dt.setDate(dt.getDate() + days);
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  // ============================================================
   // Helpers internos
   // ============================================================
   private toMonday(date: Date): Date {
@@ -960,6 +1188,77 @@ export class CocinaPage implements OnInit {
     const diff = (day === 0 ? -6 : 1) - day;
     d.setDate(d.getDate() + diff);
     return d;
+  }
+
+  // ✅ FIX DEFINITIVO: convierte cualquier formato a YYYY-MM-DD
+  private isoDateOnly(v: any): string {
+    try {
+      if (v === null || v === undefined) return '';
+
+      // Date object real
+      if (v instanceof Date && !isNaN(v.getTime())) {
+        return this.toIso(v);
+      }
+
+      const s = String(v ?? '').trim();
+      if (!s) return '';
+
+      // ✅ ISO directo o ISO que arranca con yyyy-mm-dd...
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+
+      // ✅ ISO con T
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s) && s.length >= 10) return s.slice(0, 10);
+
+      // ✅ ISO con espacio
+      if (/^\d{4}-\d{2}-\d{2}\s/.test(s) && s.length >= 10) return s.split(' ')[0];
+
+      // ✅ Caso especial: "Mon Jan 12" o "Mon Jan 12 2026"
+      const parts = s.split(/\s+/g).filter(Boolean);
+
+      const weekdays = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+      const monthMap: Record<string, number> = {
+        jan: 1,
+        feb: 2,
+        mar: 3,
+        apr: 4,
+        may: 5,
+        jun: 6,
+        jul: 7,
+        aug: 8,
+        sep: 9,
+        oct: 10,
+        nov: 11,
+        dec: 12,
+      };
+
+      let idx = 0;
+      if (parts[0] && weekdays.has(parts[0].toLowerCase())) idx = 1;
+
+      const maybeMonth = parts[idx];
+      const maybeDay = parts[idx + 1];
+      const maybeYear = parts[idx + 2];
+
+      const mm = monthMap[String(maybeMonth || '').toLowerCase()] || 0;
+      const dd = Number(maybeDay);
+
+      let yy = Number(maybeYear);
+      if (!Number.isFinite(yy) || yy <= 1900) {
+        yy = Number(String(this.weekStartIso || '').slice(0, 4)) || new Date().getFullYear();
+      }
+
+      if (mm >= 1 && mm <= 12 && Number.isFinite(dd) && dd >= 1 && dd <= 31) {
+        return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      }
+
+      // Último intento: Date.parse
+      const t = Date.parse(s);
+      if (!isNaN(t)) return this.toIso(new Date(t));
+
+      return '';
+    } catch {
+      return '';
+    }
   }
 
   private toIso(date: Date): string {

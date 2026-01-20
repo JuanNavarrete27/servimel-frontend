@@ -1019,3 +1019,90 @@
   .field--wide { grid-column: span 1; }
   .library__grid { grid-template-columns: 1fr; }
 }
+
+
+/* ============================================================
+   ✅ FIX CLICK: overlays NO pueden comerse el mouse
+   ============================================================ */
+
+/* Fondo global nunca captura clicks */
+.bg-aurora,
+.bg-mandala,
+.bg-grain {
+  pointer-events: none !important;
+}
+
+/* Asegura que las cards tengan su propio stacking correcto */
+.week,
+.day {
+  position: relative;
+  z-index: 2;
+}
+
+/* ✅ CUALQUIER overlay/pseudo dentro de la card NO captura clicks */
+.day::before,
+.day::after,
+.day *::before,
+.day *::after {
+  pointer-events: none !important;
+}
+
+/* ✅ Los botones SIEMPRE pueden recibir click */
+.day__actions,
+.day__actions * {
+  pointer-events: auto !important;
+}
+
+.day__actions {
+  position: relative;
+  z-index: 20;
+}
+
+/* ✅ por si tenías un "glass layer" dentro del día */
+.day__body,
+.day__head {
+  position: relative;
+  z-index: 5;
+}
+
+
+/* ============================================================
+   ✅ YOGA — FIX CLICK REAL (acciones día)
+   Si esto está, los botones TIENEN que funcionar.
+   ============================================================ */
+
+/* los fondos jamás capturan mouse */
+.yoga-dojo .bg-aurora,
+.yoga-dojo .bg-mandala,
+.yoga-dojo .bg-grain {
+  pointer-events: none !important;
+}
+
+/* la tarjeta del día queda arriba de cualquier overlay */
+.yoga-dojo .day {
+  position: relative;
+  z-index: 5;
+}
+
+/* si tenés brillos/vidrios con ::before/::after, NO pueden capturar clicks */
+.yoga-dojo .day::before,
+.yoga-dojo .day::after,
+.yoga-dojo .day__head::before,
+.yoga-dojo .day__head::after,
+.yoga-dojo .day__body::before,
+.yoga-dojo .day__body::after {
+  pointer-events: none !important;
+}
+
+/* ✅ el contenedor de acciones y sus botones SIEMPRE clickeables */
+.yoga-dojo .day__actions {
+  position: relative;
+  z-index: 9999;
+  pointer-events: auto !important;
+}
+
+.yoga-dojo .day__actions button {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10000;
+}

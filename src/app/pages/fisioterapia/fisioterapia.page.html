@@ -32,7 +32,7 @@
       <div>
         <div class="eyebrow">Residentes</div>
         <h2>Seleccioná un residente</h2>
-        <p class="muted">Tocá una card para abrir la ficha de fisioterapia (resumen, sesiones y notas).</p>
+        <p class="muted">Tocá una card para abrir la ficha de fisioterapia (sesiones y notas).</p>
 
         <!-- Estado carga -->
         <p class="muted" *ngIf="loadingResidents">Cargando residentes…</p>
@@ -93,7 +93,7 @@
               <span class="dot" aria-hidden="true"></span>
               <span>Fisioterapia</span>
               <span class="sep" aria-hidden="true">•</span>
-              <span class="hint">Ver resumen, sesiones y notas</span>
+              <span class="hint">Ver sesiones y notas</span>
             </div>
           </div>
         </div>
@@ -200,7 +200,6 @@
               Última: <b>{{ selectedPhysio?.lastSessionISO }}</b>
             </span>
 
-            <!-- Loading fisio real -->
             <span class="meta__chip meta__chip--muted" *ngIf="loadingSelectedPhysio">
               Cargando datos…
             </span>
@@ -213,14 +212,6 @@
       </header>
 
       <nav class="tabs" aria-label="Tabs de fisioterapia">
-        <button
-          type="button"
-          class="tab"
-          [class.tab--active]="modalTab === 'resumen'"
-          (click)="setModalTab('resumen')"
-        >
-          Resumen
-        </button>
 
         <button
           type="button"
@@ -271,21 +262,20 @@
             <article class="glass glass--accent">
               <div class="glass__h">Atajos</div>
 
-              <div class="ctaRow" *ngIf="canSeeEditEntry; else readonlyBlock">
+              <div class="ctaRow" *ngIf="canWritePhysio; else readonlyBlock">
                 <button
                   class="cta cta--ghost"
                   type="button"
-                  (click)="onEditResidentPlaceholder()"
                   [attr.aria-disabled]="!editSectionReady"
                 >
-                  {{ editEntryLabel }}
+                  EDITAR RESIDENTE
                   <span class="cta__sub">Próximamente</span>
                 </button>
 
                 <a
                   class="cta"
                   [class.cta--disabled]="!editSectionReady"
-                  [routerLink]="getEditResidentLink(selectedResident)"
+                  [routerLink]="'/fisioterapia/residentes/' + selectedResident?.id + '/editar'"
                   (click)="!editSectionReady && $event.preventDefault()"
                 >
                   Ir a edición
@@ -298,7 +288,7 @@
                   <div class="readonly__k">Vista</div>
                   <div class="readonly__v">Solo lectura</div>
                   <p class="readonly__p">
-                    Si tu rol es <b>Fisioterapeuta</b>, ves el acceso a edición acá.
+                    Si tu rol es <b>Fisioterapeuta</b>, podés crear sesiones y notas desde las tabs.
                   </p>
                 </div>
               </ng-template>
@@ -308,7 +298,7 @@
               <div class="hintBox">
                 <div class="hintBox__k">Nota</div>
                 <div class="hintBox__p">
-                  Esta ficha intenta cargar sesiones y notas desde el backend. Si aún no existen endpoints, mantiene el contenido estable con fallback local.
+                  Esta ficha carga sesiones y notas desde el backend real. Si no encuentra endpoints, usa fallback local sin romper UI.
                 </div>
               </div>
             </article>
@@ -317,6 +307,69 @@
 
         <!-- SESIONES -->
         <div class="pane" *ngIf="modalTab === 'sesiones'">
+          <!-- ✅ FORM CREAR SESIÓN (solo rol) -->
+          <div class="creator" *ngIf="canWritePhysio">
+            <div class="creator__title">Crear sesión</div>
+
+            <div class="creator__grid">
+              <label class="f">
+                <span class="f__k">Fecha</span>
+                <input class="f__in" type="date" [(ngModel)]="sessionDraft.dateISO" name="sessionDateISO" />
+              </label>
+
+              <label class="f">
+                <span class="f__k">Tipo</span>
+                <select class="f__in" [(ngModel)]="sessionDraft.type" name="sessionType">
+                  <option value="movilidad">Movilidad</option>
+                  <option value="fuerza">Fuerza</option>
+                  <option value="respiratorio">Respiratorio</option>
+                  <option value="otros">Otros</option>
+                </select>
+              </label>
+
+              <label class="f">
+                <span class="f__k">Duración (min)</span>
+                <input
+                  class="f__in"
+                  type="number"
+                  min="0"
+                  max="360"
+                  [(ngModel)]="sessionDraft.durationMin"
+                  name="sessionDuration"
+                />
+              </label>
+
+              <label class="f f--full">
+                <span class="f__k">Objetivo</span>
+                <input
+                  class="f__in"
+                  type="text"
+                  [(ngModel)]="sessionDraft.objective"
+                  name="sessionObjective"
+                  placeholder="Ej: movilidad de hombro..."
+                />
+              </label>
+
+              <label class="f f--full">
+                <span class="f__k">Resultado</span>
+                <input
+                  class="f__in"
+                  type="text"
+                  [(ngModel)]="sessionDraft.result"
+                  name="sessionResult"
+                  placeholder="Ej: toleró bien / dolor leve..."
+                />
+              </label>
+            </div>
+
+            <button class="btn" type="button" (click)="submitSession()" [disabled]="savingSession">
+              {{ savingSession ? 'Guardando…' : 'Crear sesión' }}
+            </button>
+
+            <div class="creator__msg" *ngIf="actionMsg">{{ actionMsg }}</div>
+            <div class="divider"></div>
+          </div>
+
           <div class="list" *ngIf="(selectedPhysio?.sessions?.length || 0) > 0; else noSessions">
             <article class="item" *ngFor="let s of selectedPhysio?.sessions">
               <div class="item__top">
@@ -341,7 +394,7 @@
             <div class="empty empty--modal">
               <div class="empty__title">Sin sesiones registradas</div>
               <div class="empty__text">
-                Si el backend aún no tiene endpoints de fisioterapia, no habrá sesiones para mostrar.
+                Podés crear una sesión desde arriba si tu rol lo permite.
               </div>
             </div>
           </ng-template>
@@ -349,6 +402,47 @@
 
         <!-- NOTAS -->
         <div class="pane" *ngIf="modalTab === 'notas'">
+          <!-- ✅ FORM CREAR NOTA (solo rol) -->
+          <div class="creator" *ngIf="canWritePhysio">
+            <div class="creator__title">Crear nota clínica</div>
+
+            <div class="creator__grid">
+              <label class="f">
+                <span class="f__k">Fecha</span>
+                <input class="f__in" type="date" [(ngModel)]="noteDraft.dateISO" name="noteDateISO" />
+              </label>
+
+              <label class="f">
+                <span class="f__k">Autor</span>
+                <input
+                  class="f__in"
+                  type="text"
+                  [(ngModel)]="noteDraft.author"
+                  name="noteAuthor"
+                  placeholder="Ej: Fisioterapia / Equipo"
+                />
+              </label>
+
+              <label class="f f--full">
+                <span class="f__k">Nota clínica</span>
+                <textarea
+                  class="f__in"
+                  rows="4"
+                  [(ngModel)]="noteDraft.text"
+                  name="noteText"
+                  placeholder="Escribí la evolución clínica, observaciones, tolerancia, dolor, cambios..."
+                ></textarea>
+              </label>
+            </div>
+
+            <button class="btn" type="button" (click)="submitNote()" [disabled]="savingNote">
+              {{ savingNote ? 'Guardando…' : 'Crear nota clínica' }}
+            </button>
+
+            <div class="creator__msg" *ngIf="actionMsg">{{ actionMsg }}</div>
+            <div class="divider"></div>
+          </div>
+
           <div class="list" *ngIf="(selectedPhysio?.notes?.length || 0) > 0; else noNotes">
             <article class="item item--note" *ngFor="let n of selectedPhysio?.notes">
               <div class="item__top">
@@ -366,7 +460,7 @@
             <div class="empty empty--modal">
               <div class="empty__title">Sin notas clínicas</div>
               <div class="empty__text">
-                Si el backend aún no tiene endpoints de fisioterapia, no habrá notas para mostrar.
+                Podés crear una nota desde arriba si tu rol lo permite.
               </div>
             </div>
           </ng-template>

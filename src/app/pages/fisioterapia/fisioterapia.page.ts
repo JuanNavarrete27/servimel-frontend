@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, map } from 'rxjs';
 
@@ -26,16 +27,6 @@ type Highlight = {
   detail: string;
   tone: 'ok' | 'info' | 'warn' | 'muted';
 };
-
-// ============================================================
-// SERVIMEL — Fisioterapia (REAL)
-// ✅ Residentes REALES: GET /residentes (sin depender de ResidentesService)
-// ✅ Modal por residente
-// ✅ Fisio REAL:
-//    - intenta leer del backend (si existen endpoints)
-//    - y deja helpers listos para CREAR sesiones/notas si existen endpoints
-//    - fallback a LocalStorage (sin romper UI) si el backend no los tiene aún
-// ============================================================
 
 type ResidentCard = {
   id: number;
@@ -79,20 +70,18 @@ type ResidentPhysio = {
 type ModalTab = 'resumen' | 'sesiones' | 'notas';
 
 const LS_PHYSIO_KEY = 'svm_physio_v1';
-
-// Para no spamear el backend (y no pedir fisio 10 veces)
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 @Component({
   selector: 'app-fisioterapia-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './fisioterapia.page.html',
   styleUrls: ['./fisioterapia.page.scss'],
 })
 export class FisioterapiaPage implements OnInit {
   // ============================================================
-  // Guía visual (se mantiene)
+  // Guía visual
   // ============================================================
   sections: Section[] = [
     {
@@ -131,13 +120,13 @@ export class FisioterapiaPage implements OnInit {
   ];
 
   // ============================================================
-  // Rol (storage)
+  // Rol
   // ============================================================
   userRole: string | null = null;
   isFisioterapeuta = false;
 
   // ============================================================
-  // Residentes (REALES)
+  // Residentes
   // ============================================================
   search = '';
   residents: ResidentCard[] = [];
@@ -145,7 +134,7 @@ export class FisioterapiaPage implements OnInit {
   errorMsg = '';
 
   // ============================================================
-  // Fisioterapia por residente (cache)
+  // Cache fisio
   // ============================================================
   private physioByResident = new Map<number, ResidentPhysio>();
   private physioLoadState = new Map<number, LoadState>();
@@ -159,9 +148,27 @@ export class FisioterapiaPage implements OnInit {
   selectedPhysio: ResidentPhysio | null = null;
   loadingSelectedPhysio = false;
 
+  // ✅ acciones write (UI)
+  savingSession = false;
+  savingNote = false;
+  actionMsg = '';
+
+  sessionDraft = {
+    dateISO: '',
+    type: 'otros' as PhysioSessionType,
+    durationMin: 30,
+    objective: '',
+    result: '',
+  };
+
+  noteDraft = {
+    dateISO: '',
+    author: 'Fisioterapia',
+    text: '',
+  };
+
   readonly editSectionReady = false;
 
-  // Injects
   private http = inject(HttpClient);
 
   constructor(@Inject(PLATFORM_ID) private platformId: Object) {}
@@ -169,11 +176,18 @@ export class FisioterapiaPage implements OnInit {
   ngOnInit(): void {
     this.detectRoleFromStorage();
     this.loadPhysioLocal();
+
+    // defaults drafts
+    const today = this.todayISO();
+    this.sessionDraft.dateISO = today;
+    this.noteDraft.dateISO = today;
+    this.noteDraft.author = this.isFisioterapeuta ? 'Fisioterapia' : 'Equipo';
+
     void this.fetchResidentsReal();
   }
 
   // ============================================================
-  // AUTH headers (✅ FIX: backend protegido)
+  // AUTH headers (backend protegido)
   // ============================================================
   private getToken(): string | null {
     if (!isPlatformBrowser(this.platformId)) return null;
@@ -210,7 +224,6 @@ export class FisioterapiaPage implements OnInit {
   private apiBase(): string {
     const base = (API_CONFIG?.baseUrl || '').toString().trim();
 
-    // override opcional (debug)
     let override = '';
     try {
       override =
@@ -254,9 +267,8 @@ export class FisioterapiaPage implements OnInit {
     const role = this.tryReadRoleFromKnownStorageKeys();
     this.userRole = role;
 
-    // En Servimel puede venir "fisioterapia" o "fisioterapeuta"
     const norm = this.normalizeRole(role);
-    this.isFisioterapeuta = norm === 'fisioterapeuta' || norm === 'fisioterapia';
+    this.isFisioterapeuta = norm === 'fisioterapeuta' || norm === 'fisioterapia' || norm === 'admin';
   }
 
   private tryReadRoleFromKnownStorageKeys(): string | null {
@@ -276,7 +288,6 @@ export class FisioterapiaPage implements OnInit {
         const raw = localStorage.getItem(k);
         if (!raw) continue;
 
-        // string directo
         if (raw.length < 60 && !raw.trim().startsWith('{')) return raw;
 
         const obj = JSON.parse(raw);
@@ -304,25 +315,39 @@ export class FisioterapiaPage implements OnInit {
   }
 
   // ============================================================
-  // ✅ RESIDENTES REALES (GET /residentes)
-  //   Soporta:
-  //   - ApiResponse<T> (con unwrapApi)
-  //   - array plano
-  //   - { items | data | residents }
+  // ✅ RESIDENTES REALES
+  // Ahora prueba:
+  //  - /residentes
+  //  - /api/residentes
   // ============================================================
   async fetchResidentsReal(): Promise<void> {
     this.loadingResidents = true;
     this.errorMsg = '';
 
     const base = this.apiBase();
-    const url = this.joinUrl(base, '/residentes?limit=200&offset=0');
+
+    const candidates = [
+      this.joinUrl(base, '/residentes?limit=200&offset=0'),
+      this.joinUrl(base, '/api/residentes?limit=200&offset=0'),
+    ];
 
     try {
-      const raw = await firstValueFrom(
-        this.http
-          .get<ApiResponse<any> | any>(url, { headers: this.authHeaders() })
-          .pipe(map((r) => this.unwrapLoose<any>(r)))
-      );
+      let raw: any = null;
+
+      for (const url of candidates) {
+        try {
+          raw = await firstValueFrom(
+            this.http
+              .get<ApiResponse<any> | any>(url, { headers: this.authHeaders() })
+              .pipe(map((r) => this.unwrapLoose<any>(r)))
+          );
+          if (raw) break;
+        } catch {
+          // sigue
+        }
+      }
+
+      if (!raw) throw new Error('No se pudo leer /residentes');
 
       const arr = Array.isArray(raw)
         ? raw
@@ -334,7 +359,6 @@ export class FisioterapiaPage implements OnInit {
 
       this.residents = mapped;
 
-      // crea cache vacía por residente (sin inventar sesiones)
       for (const r of this.residents) this.ensurePhysioExists(r.id);
 
       this.loadingResidents = false;
@@ -350,8 +374,6 @@ export class FisioterapiaPage implements OnInit {
     const id = Number(x.id ?? x.residentId ?? x.residenteId);
     if (!Number.isFinite(id)) return null;
 
-    // Tu endpoint /residentes en FE viejo: { id, nombre, habitacion, estado }
-    // Pero también soportamos: first_name/last_name, etc.
     const nombreRaw = (x.nombre ?? x.first_name ?? x.firstName ?? '').toString().trim();
     const apellidoRaw = (x.apellido ?? x.last_name ?? x.lastName ?? '').toString().trim();
 
@@ -395,11 +417,7 @@ export class FisioterapiaPage implements OnInit {
     return this.residents.filter((r) => {
       const name = `${r.nombre} ${r.apellido}`.toLowerCase();
       const room = (r.nroHabitacion || '').toLowerCase();
-      return (
-        name.includes(q) ||
-        room.includes(q) ||
-        String(r.id).includes(q)
-      );
+      return name.includes(q) || room.includes(q) || String(r.id).includes(q);
     });
   }
 
@@ -421,13 +439,29 @@ export class FisioterapiaPage implements OnInit {
   openResidentModal(resident: ResidentCard): void {
     this.selectedResident = resident;
 
-    // pinta instantáneo
     this.selectedPhysio = this.ensurePhysioExists(resident.id);
 
     this.modalTab = 'resumen';
     this.isModalOpen = true;
+    this.actionMsg = '';
 
-    // intenta backend real (si endpoints existen)
+    // defaults drafts
+    const today = this.todayISO();
+    this.sessionDraft = {
+      dateISO: today,
+      type: 'otros',
+      durationMin: 30,
+      objective: '',
+      result: '',
+    };
+    this.noteDraft = {
+      dateISO: today,
+      author: this.isFisioterapeuta ? 'Fisioterapia' : 'Equipo',
+      text: '',
+    };
+
+    this.updateHighlightsFromSelected();
+
     void this.ensurePhysioFromApi(resident.id);
   }
 
@@ -437,10 +471,12 @@ export class FisioterapiaPage implements OnInit {
     this.selectedResident = null;
     this.selectedPhysio = null;
     this.loadingSelectedPhysio = false;
+    this.actionMsg = '';
   }
 
   setModalTab(tab: ModalTab): void {
     this.modalTab = tab;
+    this.actionMsg = '';
   }
 
   @HostListener('document:keydown.escape')
@@ -449,7 +485,7 @@ export class FisioterapiaPage implements OnInit {
   }
 
   // ============================================================
-  // UI helpers fisio
+  // UI helpers
   // ============================================================
   getStatusLabel(status: PhysioStatus): string {
     switch (status) {
@@ -463,20 +499,6 @@ export class FisioterapiaPage implements OnInit {
         return 'Alta';
       default:
         return '—';
-    }
-  }
-
-  getStatusTone(status: PhysioStatus): 'ok' | 'info' | 'warn' | 'muted' {
-    switch (status) {
-      case 'en-plan':
-        return 'ok';
-      case 'pendiente':
-        return 'warn';
-      case 'alta':
-        return 'info';
-      case 'sin-plan':
-      default:
-        return 'muted';
     }
   }
 
@@ -495,27 +517,14 @@ export class FisioterapiaPage implements OnInit {
   }
 
   // ============================================================
-  // Entry edit (placeholder)
+  // Permisos (WRITE)
   // ============================================================
-  get canSeeEditEntry(): boolean {
+  get canWritePhysio(): boolean {
     return this.isFisioterapeuta;
   }
 
-  get editEntryLabel(): string {
-    return 'EDITAR RESIDENTE';
-  }
-
-  getEditResidentLink(resident: ResidentCard | null): string {
-    if (!resident) return '/fisioterapia';
-    return `/fisioterapia/residentes/${resident.id}/editar`;
-  }
-
-  onEditResidentPlaceholder(): void {
-    // placeholder
-  }
-
   // ============================================================
-  // ✅ PHYSIO: cache + backend if exists + fallback LS
+  // ✅ PHYSIO cache + backend + fallback LS
   // ============================================================
   private ensurePhysioExists(residentId: number): ResidentPhysio {
     const existing = this.physioByResident.get(residentId);
@@ -559,11 +568,13 @@ export class FisioterapiaPage implements OnInit {
         this.physioByResident.set(residentId, merged);
         this.persistPhysioLocal();
 
-        if (isSelected) this.selectedPhysio = merged;
+        if (isSelected) {
+          this.selectedPhysio = merged;
+          this.updateHighlightsFromSelected();
+        }
 
         this.physioLoadState.set(residentId, 'loaded');
       } else {
-        // no endpoint encontrado -> dejamos cache local y marcamos loaded igual (evita spam)
         this.physioLoadState.set(residentId, 'loaded');
       }
     } catch {
@@ -574,21 +585,21 @@ export class FisioterapiaPage implements OnInit {
   }
 
   // ------------------------------------------------------------
-  // Intento de endpoints posibles
+  // Intento de endpoints (con y sin /api)
   // ------------------------------------------------------------
   private async tryFetchPhysioReal(residentId: number): Promise<ResidentPhysio | null> {
     const base = this.apiBase();
 
     const candidates = [
-      // probables
+      // sin /api
       `/fisioterapia/residentes/${residentId}`,
-      `/fisioterapia/residentes/${residentId}/resumen`,
-      `/fisioterapia/${residentId}`,
 
-      // variante servicios
+      // con /api
+      `/api/fisioterapia/residentes/${residentId}`,
+
+      // variantes legacy (por si estaban en servicios)
       `/servicios/fisioterapia/residentes/${residentId}`,
-      `/servicios/fisioterapia/residentes/${residentId}/resumen`,
-      `/servicios/fisioterapia/${residentId}`,
+      `/api/servicios/fisioterapia/residentes/${residentId}`,
     ];
 
     for (const path of candidates) {
@@ -638,7 +649,7 @@ export class FisioterapiaPage implements OnInit {
       ''
     ).toString();
 
-    const rawSessions = data?.sessions ?? data?.sesiones ?? data?.items ?? [];
+    const rawSessions = data?.sessions ?? data?.sesiones ?? [];
     const rawNotes = data?.notes ?? data?.notas ?? [];
 
     const sessions: PhysioSession[] = Array.isArray(rawSessions)
@@ -647,16 +658,19 @@ export class FisioterapiaPage implements OnInit {
             const id = Number(s?.id ?? s?.sessionId ?? s?.session_id);
             if (!Number.isFinite(id)) return null;
 
-            const dateISO = String(s?.dateISO ?? s?.date ?? s?.fechaISO ?? s?.fecha ?? '')
-              .slice(0, 10) || this.todayISO();
+            const dateISO =
+              String(s?.dateISO ?? s?.date ?? s?.fechaISO ?? s?.fecha ?? '')
+                .slice(0, 10) || this.todayISO();
 
-            const typeRaw = String(s?.type ?? s?.tipo ?? 'otros').toLowerCase();
+            const typeRaw = String(s?.type ?? s?.tipo ?? s?.session_type ?? 'otros').toLowerCase();
             const type: PhysioSessionType =
               typeRaw.includes('mov') ? 'movilidad' :
               typeRaw.includes('fuer') ? 'fuerza' :
               typeRaw.includes('resp') ? 'respiratorio' : 'otros';
 
-            const durationMin = Number(s?.durationMin ?? s?.duration_min ?? s?.minutos ?? s?.duration ?? 0);
+            const durationMin = Number(
+              s?.durationMin ?? s?.duration_min ?? s?.minutos ?? s?.duration ?? 0
+            );
             const safeDur = Number.isFinite(durationMin) ? durationMin : 0;
 
             return {
@@ -665,7 +679,7 @@ export class FisioterapiaPage implements OnInit {
               type,
               durationMin: safeDur,
               objective: s?.objective ?? s?.objetivo ?? undefined,
-              result: s?.result ?? s?.resultado ?? undefined,
+              result: s?.result ?? s?.resultado ?? s?.result_text ?? undefined,
             } as PhysioSession;
           })
           .filter(Boolean)) as PhysioSession[]
@@ -677,11 +691,12 @@ export class FisioterapiaPage implements OnInit {
             const id = Number(n?.id ?? n?.noteId ?? n?.note_id);
             if (!Number.isFinite(id)) return null;
 
-            const dateISO = String(n?.dateISO ?? n?.date ?? n?.fechaISO ?? n?.fecha ?? '')
-              .slice(0, 10) || this.todayISO();
+            const dateISO =
+              String(n?.dateISO ?? n?.date ?? n?.fechaISO ?? n?.fecha ?? '')
+                .slice(0, 10) || this.todayISO();
 
-            const author = String(n?.author ?? n?.autor ?? n?.createdBy ?? 'Fisioterapia');
-            const text = String(n?.text ?? n?.nota ?? n?.contenido ?? '');
+            const author = String(n?.author ?? n?.autor ?? n?.author_name ?? 'Fisioterapia');
+            const text = String(n?.text ?? n?.nota ?? n?.contenido ?? n?.note_text ?? '');
 
             return { id, dateISO, author, text } as PhysioNote;
           })
@@ -699,10 +714,69 @@ export class FisioterapiaPage implements OnInit {
   }
 
   // ============================================================
-  // ✅ Enviar datos reales (si existen endpoints)
-  // - si NO existen, guarda en LocalStorage (fallback)
-  //   (No rompe compile aunque no lo uses en HTML todavía)
+  // ✅ WRITE: crear sesión / nota
+  // (con y sin /api) + refresh
   // ============================================================
+  async submitSession(): Promise<void> {
+    if (!this.selectedResident) return;
+    if (!this.canWritePhysio) return;
+
+    this.actionMsg = '';
+    this.savingSession = true;
+
+    const rid = this.selectedResident.id;
+
+    try {
+      await this.addSessionReal(rid, {
+        dateISO: String(this.sessionDraft.dateISO || '').slice(0, 10),
+        type: this.sessionDraft.type,
+        durationMin: Number(this.sessionDraft.durationMin || 0),
+        objective: (this.sessionDraft.objective || '').trim() || undefined,
+        result: (this.sessionDraft.result || '').trim() || undefined,
+      });
+
+      this.actionMsg = '✅ Sesión creada.';
+      this.sessionDraft.objective = '';
+      this.sessionDraft.result = '';
+    } catch (e) {
+      this.actionMsg = this.humanError(e, 'No se pudo crear la sesión.');
+    } finally {
+      this.savingSession = false;
+    }
+  }
+
+  async submitNote(): Promise<void> {
+    if (!this.selectedResident) return;
+    if (!this.canWritePhysio) return;
+
+    this.actionMsg = '';
+    this.savingNote = true;
+
+    const rid = this.selectedResident.id;
+
+    try {
+      const text = (this.noteDraft.text || '').trim();
+      if (!text) {
+        this.actionMsg = '⚠️ La nota no puede estar vacía.';
+        this.savingNote = false;
+        return;
+      }
+
+      await this.addNoteReal(rid, {
+        dateISO: String(this.noteDraft.dateISO || '').slice(0, 10),
+        author: (this.noteDraft.author || 'Fisioterapia').trim() || 'Fisioterapia',
+        text,
+      });
+
+      this.actionMsg = '✅ Nota clínica creada.';
+      this.noteDraft.text = '';
+    } catch (e) {
+      this.actionMsg = this.humanError(e, 'No se pudo crear la nota clínica.');
+    } finally {
+      this.savingNote = false;
+    }
+  }
+
   async addSessionReal(
     residentId: number,
     payload: { dateISO: string; type: PhysioSessionType; durationMin: number; objective?: string; result?: string }
@@ -712,21 +786,21 @@ export class FisioterapiaPage implements OnInit {
 
     const candidates = [
       `/fisioterapia/residentes/${residentId}/sessions`,
-      `/fisioterapia/residentes/${residentId}/sesiones`,
+      `/api/fisioterapia/residentes/${residentId}/sessions`,
+
       `/servicios/fisioterapia/residentes/${residentId}/sessions`,
+      `/api/servicios/fisioterapia/residentes/${residentId}/sessions`,
     ];
 
     for (const path of candidates) {
       const url = this.joinUrl(base, path);
       try {
-        const res = await firstValueFrom(
+        await firstValueFrom(
           this.http
             .post<ApiResponse<any> | any>(url, payload, { headers: this.authHeaders() })
             .pipe(map((r) => this.unwrapLoose<any>(r)))
         );
 
-        // si el backend devuelve algo útil, refrescamos
-        void res;
         await this.refreshPhysio(residentId);
         return;
       } catch {
@@ -756,7 +830,10 @@ export class FisioterapiaPage implements OnInit {
     this.physioByResident.set(residentId, next);
     this.persistPhysioLocal();
 
-    if (this.selectedResident?.id === residentId) this.selectedPhysio = next;
+    if (this.selectedResident?.id === residentId) {
+      this.selectedPhysio = next;
+      this.updateHighlightsFromSelected();
+    }
   }
 
   async addNoteReal(
@@ -768,8 +845,10 @@ export class FisioterapiaPage implements OnInit {
 
     const candidates = [
       `/fisioterapia/residentes/${residentId}/notes`,
-      `/fisioterapia/residentes/${residentId}/notas`,
+      `/api/fisioterapia/residentes/${residentId}/notes`,
+
       `/servicios/fisioterapia/residentes/${residentId}/notes`,
+      `/api/servicios/fisioterapia/residentes/${residentId}/notes`,
     ];
 
     for (const path of candidates) {
@@ -798,13 +877,47 @@ export class FisioterapiaPage implements OnInit {
     this.physioByResident.set(residentId, next);
     this.persistPhysioLocal();
 
-    if (this.selectedResident?.id === residentId) this.selectedPhysio = next;
+    if (this.selectedResident?.id === residentId) {
+      this.selectedPhysio = next;
+      this.updateHighlightsFromSelected();
+    }
   }
 
   private async refreshPhysio(residentId: number): Promise<void> {
-    // reintenta aunque estaba "loaded"
     this.physioLoadState.set(residentId, 'idle');
     await this.ensurePhysioFromApi(residentId);
+  }
+
+  // ============================================================
+  // Highlights dinámicos según residente seleccionado
+  // ============================================================
+  private updateHighlightsFromSelected(): void {
+    const p = this.selectedPhysio;
+    if (!p) return;
+
+    const sessions = p.sessions?.length || 0;
+    const notes = p.notes?.length || 0;
+
+    const lastSession = p.lastSessionISO || (p.sessions?.[0]?.dateISO ?? '—');
+    const lastNote = p.notes?.[0]?.dateISO ?? '—';
+
+    this.highlights = [
+      {
+        label: 'Turnos',
+        detail: sessions > 0 ? `${sessions} sesión/es registradas` : 'Sin sesiones cargadas.',
+        tone: sessions > 0 ? 'ok' : 'muted',
+      },
+      {
+        label: 'Seguimiento',
+        detail: notes > 0 ? `Última nota: ${lastNote}` : 'Cargá notas después de cada sesión.',
+        tone: notes > 0 ? 'info' : 'info',
+      },
+      {
+        label: 'Prevención',
+        detail: `Última sesión: ${lastSession}`,
+        tone: sessions > 0 ? 'ok' : 'muted',
+      },
+    ];
   }
 
   // ============================================================
@@ -856,7 +969,6 @@ export class FisioterapiaPage implements OnInit {
     return {
       residentId,
       status: 'sin-plan',
-      // ✅ FIX: si no hay plan real, dejamos undefined para que el HTML muestre el fallback "Sin plan activo..."
       planSummary: undefined,
       sessions: [],
       notes: [],

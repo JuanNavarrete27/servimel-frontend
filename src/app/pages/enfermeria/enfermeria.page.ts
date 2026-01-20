@@ -697,6 +697,90 @@ export class EnfermeriaPage implements OnInit, AfterViewInit, OnDestroy {
     return 'pending';
   }
 
+  // ============================================================
+// ✅ Parser PRO vitals desde timeline (title + summary)
+// ============================================================
+private parseVitalsFromTimeline(title: string | null, summary: string | null): {
+  temp: number | null;
+  sys: number | null;
+  dia: number | null;
+  hr: number | null;
+  spo2: number | null;
+  pain: number | null;
+} {
+  const merged = `${title ?? ''} · ${summary ?? ''}`.trim();
+
+  // normalizamos:
+  // - comas -> punto
+  // - espacios
+  const s = merged.replace(/,/g, '.').replace(/\s+/g, ' ').trim();
+
+  const pickNum = (re: RegExp): number | null => {
+    const m = s.match(re);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // -------------------------
+  // TEMP
+  // -------------------------
+  const temp =
+    pickNum(/(?:temp(?:eratura)?|t)\s*[:=]?\s*([0-9]{2}(?:\.[0-9]+)?)/i) ??
+    pickNum(/([0-9]{2}(?:\.[0-9]+)?)\s*°?\s*c\b/i);
+
+  // -------------------------
+  // PRESIÓN (PA/TA/BP 120/80)
+  // -------------------------
+  const bpRaw =
+    s.match(/(?:pa|ta|bp|presi[oó]n)\s*[:=]?\s*([0-9]{2,3}\s*\/\s*[0-9]{2,3})/i)?.[1] ??
+    s.match(/\b([0-9]{2,3}\s*\/\s*[0-9]{2,3})\b/)?.[1] ??
+    null;
+
+  // PAS/PAD
+  const pas = pickNum(/\bpas\s*[:=]?\s*([0-9]{2,3})\b/i);
+  const pad = pickNum(/\bpad\s*[:=]?\s*([0-9]{2,3})\b/i);
+
+  let sys: number | null = null;
+  let dia: number | null = null;
+
+  if (pas !== null && pad !== null) {
+    sys = pas;
+    dia = pad;
+  } else if (bpRaw) {
+    const m = bpRaw.replace(/\s*/g, '').match(/(\d{2,3})\/(\d{2,3})/);
+    if (m) {
+      sys = Number(m[1]);
+      dia = Number(m[2]);
+      if (!Number.isFinite(sys)) sys = null;
+      if (!Number.isFinite(dia)) dia = null;
+    }
+  }
+
+  // -------------------------
+  // FC / HR / PULSO
+  // -------------------------
+  const hr =
+    pickNum(/(?:fc|hr|pulso)\s*[:=]?\s*([0-9]{2,3})\b/i) ??
+    pickNum(/\b([0-9]{2,3})\s*(?:bpm|lpm)\b/i);
+
+  // -------------------------
+  // SpO2 / SatO2
+  // -------------------------
+  const spo2 =
+    pickNum(/(?:spo2|sao2|sat(?:u)?r(?:aci[oó]n)?)\s*[:=]?\s*([0-9]{2,3})\b/i) ??
+    pickNum(/\b([0-9]{2,3})\s*%\b/i);
+
+  // -------------------------
+  // Dolor / Pain
+  // -------------------------
+  const pain =
+    pickNum(/(?:dolor|pain)\s*[:=]?\s*([0-9]{1,2})\b/i);
+
+  return { temp, sys, dia, hr, spo2, pain };
+}
+
+
   private mapVitalFromTimeline(ev: TimelineItemApi, residentId: number): VitalRecord {
     const txt = `${ev.title || ''} ${ev.summary || ''}`.toLowerCase();
 

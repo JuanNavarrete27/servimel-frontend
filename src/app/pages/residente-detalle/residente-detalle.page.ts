@@ -1,4 +1,4 @@
-// residente-detalle.page.ts
+// src/app/pages/residente-detalle/residente-detalle.page.ts
 import {
   Component,
   HostListener,
@@ -19,7 +19,7 @@ import {
   HttpClient,
   HttpClientModule,
   HttpErrorResponse,
-  HttpHeaders
+  HttpHeaders,
 } from '@angular/common/http';
 import { Subscription, of } from 'rxjs';
 import { catchError, finalize, map, switchMap, take } from 'rxjs/operators';
@@ -106,7 +106,10 @@ type Resumen = {
    BACKEND TYPES
 ========================= */
 type ApiOk<T> = { ok: true; data: T };
-type ApiFail = { ok: false; error: { code: string; message: string; details?: any } };
+type ApiFail = {
+  ok: false;
+  error: { code: string; message: string; details?: any };
+};
 type ApiEnvelope<T> = ApiOk<T> | ApiFail;
 
 type ResidentApi = {
@@ -155,7 +158,9 @@ type TimelineListApi = {
   templateUrl: './residente-detalle.page.html',
   styleUrls: ['./residente-detalle.page.scss'],
 })
-export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
+export class ResidenteDetallePage
+  implements OnInit, AfterViewInit, OnDestroy
+{
   private readonly API = API_CONFIG.baseUrl;
 
   @ViewChild('pdfRoot', { static: false }) pdfRoot!: ElementRef<HTMLElement>;
@@ -167,9 +172,8 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
 
   // ===== PDF =====
   pdfLoading = false;
-  exportMode = false; // ✅ cuando true: NO muestra formularios, muestra todo en lectura
+  exportMode = false;
 
-  // ===== Edit mocks (mantengo para app, pero NO salen en PDF) =====
   editingMedId: number | null = null;
   medDraft: Partial<MedicacionRow> = {};
 
@@ -217,8 +221,15 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
   private routeSub: Subscription | null = null;
 
   private gsapCleanup: (() => void) | null = null;
-  private gsapRef: { context: Function; set: Function; timeline: Function; to: Function; killTweensOf: Function } | null =
-    null;
+  private gsapRef:
+    | {
+        context: Function;
+        set: Function;
+        timeline: Function;
+        to: Function;
+        killTweensOf: Function;
+      }
+    | null = null;
   private prefersReducedMotion = false;
 
   constructor(
@@ -237,7 +248,8 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
 
       try {
         this.prefersReducedMotion =
-          window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+          window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ??
+          false;
       } catch {
         this.prefersReducedMotion = false;
       }
@@ -245,7 +257,7 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.routeSub = this.route.paramMap.subscribe(pm => {
+    this.routeSub = this.route.paramMap.subscribe((pm) => {
       const id = Number(pm.get('id') || 0);
       this.id = id;
 
@@ -267,7 +279,7 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
       'auth_token',
       'token',
       'jwt',
-      'access_token'
+      'access_token',
     ];
 
     for (const k of keys) {
@@ -295,7 +307,8 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
   private humanHttpError(e: unknown): string {
     const err = e as HttpErrorResponse;
 
-    const msg = (err as any)?.error?.error?.message || (err as any)?.error?.message;
+    const msg =
+      (err as any)?.error?.error?.message || (err as any)?.error?.message;
     if (msg) return String(msg);
 
     if (err?.status) return `HTTP ${err.status} — ${err.statusText || 'Error'}`;
@@ -329,7 +342,6 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private occurredToIso(s: string): string {
-    // "YYYY-MM-DD HH:mm:ss" -> "YYYY-MM-DDTHH:mm:ss"
     const raw = String(s || '').trim();
     if (!raw) return new Date().toISOString();
     if (raw.includes('T')) return raw;
@@ -357,26 +369,62 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
     return t.includes('alerta') ? 'alerta' : 'normal';
   }
 
-  private parseVitals(summary: string | null): { temp: string; presion: string; pulso: string } {
-    const s = (summary || '').replace(/\s+/g, ' ').trim();
+  // ✅✅ FIX CLAVE:
+  // parsea usando title + summary (porque summary a veces viene null o incompleto)
+  // soporta TA, PA, BP, PAS/PAD, FC, HR, coma decimal, etc.
+  private parseVitals(title: string | null, summary: string | null): {
+    temp: string;
+    presion: string;
+    pulso: string;
+  } {
+    const merged = `${title ?? ''} · ${summary ?? ''}`.trim();
 
-    const temp =
-      s.match(/temp(?:eratura)?\s*([0-9]{2}\.?[0-9]*)/i)?.[1] ||
-      s.match(/([0-9]{2}\.?[0-9]*)\s*°?c/i)?.[1] ||
-      '—';
+    // normalizamos:
+    // - comas -> punto
+    // - espacios
+    const s = merged.replace(/,/g, '.').replace(/\s+/g, ' ').trim();
 
-    const presion =
-      s.match(/pa\s*([0-9]{2,3}\/[0-9]{2,3})/i)?.[1] ||
-      s.match(/presi[oó]n\s*([0-9]{2,3}\/[0-9]{2,3})/i)?.[1] ||
-      s.match(/\b([0-9]{2,3}\/[0-9]{2,3})\b/)?.[1] ||
-      '—';
+    // -------------------------
+    // TEMPERATURA
+    // -------------------------
+    const tempRaw =
+      s.match(/(?:temp(?:eratura)?|t)\s*[:=]?\s*([0-9]{2}(?:\.[0-9]+)?)/i)?.[1] ||
+      s.match(/([0-9]{2}(?:\.[0-9]+)?)\s*°?\s*c\b/i)?.[1] ||
+      null;
 
-    const pulso =
-      s.match(/pulso\s*([0-9]{2,3})/i)?.[1] ||
-      s.match(/\b([0-9]{2,3})\s*bpm\b/i)?.[1] ||
-      '—';
+    const temp = tempRaw ? String(tempRaw) : '—';
 
-    return { temp: String(temp), presion: String(presion), pulso: String(pulso) };
+    // -------------------------
+    // PRESIÓN
+    // -------------------------
+    // 1) PA/TA/BP 120/80
+    const p1 =
+      s.match(/(?:pa|ta|bp|presi[oó]n)\s*[:=]?\s*([0-9]{2,3}\s*\/\s*[0-9]{2,3})/i)?.[1] ||
+      s.match(/\b([0-9]{2,3}\s*\/\s*[0-9]{2,3})\b/)?.[1] ||
+      null;
+
+    // 2) PAS/PAD (ej: PAS 120 PAD 80)
+    const pas = s.match(/\bpas\s*[:=]?\s*([0-9]{2,3})\b/i)?.[1] || null;
+    const pad = s.match(/\bpad\s*[:=]?\s*([0-9]{2,3})\b/i)?.[1] || null;
+
+    let presion = '—';
+    if (pas && pad) {
+      presion = `${pas}/${pad}`;
+    } else if (p1) {
+      presion = String(p1).replace(/\s*/g, '').replace('-', '/').replace('x', '/');
+    }
+
+    // -------------------------
+    // PULSO / FC / HR
+    // -------------------------
+    const pulsoRaw =
+      s.match(/(?:pulso|fc|hr)\s*[:=]?\s*([0-9]{2,3})\b/i)?.[1] ||
+      s.match(/\b([0-9]{2,3})\s*(?:bpm|lpm)\b/i)?.[1] ||
+      null;
+
+    const pulso = pulsoRaw ? String(pulsoRaw) : '—';
+
+    return { temp, presion, pulso };
   }
 
   private sortByFechaDesc<T extends { fecha: string }>(arr: T[]): T[] {
@@ -401,7 +449,7 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
       )
       .pipe(
         take(1),
-        map(raw => this.unwrap<ResidentApi>(raw)),
+        map((raw) => this.unwrap<ResidentApi>(raw)),
         switchMap((residentApi) => {
           const base = this.mapResident(residentApi);
 
@@ -412,22 +460,25 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
             )
             .pipe(
               take(1),
-              map(raw => this.unwrap<TimelineListApi>(raw)),
-              map(tl => {
+              map((raw) => this.unwrap<TimelineListApi>(raw)),
+              map((tl) => {
                 const items = tl?.items || [];
 
-                const historial: HistorialRow[] = items.map(ev => ({
+                const historial: HistorialRow[] = items.map((ev) => ({
                   id: ev.id,
                   fecha: this.occurredToIso(ev.occurred_at),
                   titulo: ev.title,
                   detalle: ev.summary ?? '',
-                  by: this.timelineUserLabel(ev)
+                  by: this.timelineUserLabel(ev),
                 }));
 
                 const medicacion: MedicacionRow[] = items
-                  .filter(ev => ev.event_type === 'medication')
-                  .map(ev => {
-                    const parts = (ev.summary || '').split('·').map(x => x.trim()).filter(Boolean);
+                  .filter((ev) => ev.event_type === 'medication')
+                  .map((ev) => {
+                    const parts = (ev.summary || '')
+                      .split('·')
+                      .map((x) => x.trim())
+                      .filter(Boolean);
                     return {
                       id: ev.id,
                       medicamento: parts[0] || 'Medicación',
@@ -435,42 +486,47 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
                       horario: this.hhmmFromOccurredAt(ev.occurred_at),
                       estado: this.mapMedStatusFromBackend(ev.summary),
                       updatedAt: this.occurredToIso(ev.occurred_at),
-                      updatedBy: this.timelineUserLabel(ev)
+                      updatedBy: this.timelineUserLabel(ev),
                     };
                   });
 
                 const observaciones: ObservacionRow[] = items
-                  .filter(ev => ev.event_type === 'observation')
-                  .map(ev => ({
+                  .filter((ev) => ev.event_type === 'observation')
+                  .map((ev) => ({
                     id: ev.id,
                     fecha: this.occurredToIso(ev.occurred_at),
                     tipo: this.mapObsTypeFromTitle(ev.title),
                     texto: ev.summary ?? '',
                     updatedAt: this.occurredToIso(ev.occurred_at),
-                    updatedBy: this.timelineUserLabel(ev)
+                    updatedBy: this.timelineUserLabel(ev),
                   }));
 
-                const signos: SignosRow[] = items
-                  .filter(ev => ev.event_type === 'vital')
-                  .map(ev => {
-                    const p = this.parseVitals(ev.summary);
-                    return {
-                      id: ev.id,
-                      fecha: this.occurredToIso(ev.occurred_at),
-                      temp: p.temp,
-                      presion: p.presion,
-                      pulso: p.pulso,
-                      by: this.timelineUserLabel(ev)
-                    };
-                  });
+                // ✅✅ FIX CLAVE AQUÍ:
+                // usar title + summary para parsear signos
+const signos: SignosRow[] = items
+  .filter((ev) => ev.event_type === 'vital')
+  .map((ev) => {
+
+    console.log("VITAL:", ev.title, ev.summary);
+
+    const p = this.parseVitals(ev.title, ev.summary);
+    return {
+      id: ev.id,
+      fecha: this.occurredToIso(ev.occurred_at),
+      temp: p.temp,
+      presion: p.presion,
+      pulso: p.pulso,
+      by: this.timelineUserLabel(ev),
+    };
+  });
 
                 const detail: ResidenteDetail = {
                   ...base,
                   signos: this.sortByFechaDesc(signos),
                   historial: this.sortByFechaDesc(historial),
-                  medicacion: [...medicacion], // horario manda, no fecha
+                  medicacion: [...medicacion],
                   observaciones: this.sortByFechaDesc(observaciones),
-                  auditoria: []
+                  auditoria: [],
                 };
 
                 return detail;
@@ -484,14 +540,30 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
         next: (detail) => {
           this.residente = detail;
 
-          this.nextSignosId = Math.max(this.nextSignosId, ...(detail.signos.map(s => s.id + 1)), 100);
-          this.nextMedId = Math.max(this.nextMedId, ...(detail.medicacion.map(m => m.id + 1)), 200);
-          this.nextObsId = Math.max(this.nextObsId, ...(detail.observaciones.map(o => o.id + 1)), 300);
-          this.nextHistId = Math.max(this.nextHistId, ...(detail.historial.map(h => h.id + 1)), 400);
+          this.nextSignosId = Math.max(
+            this.nextSignosId,
+            ...(detail.signos.map((s) => s.id + 1)),
+            100
+          );
+          this.nextMedId = Math.max(
+            this.nextMedId,
+            ...(detail.medicacion.map((m) => m.id + 1)),
+            200
+          );
+          this.nextObsId = Math.max(
+            this.nextObsId,
+            ...(detail.observaciones.map((o) => o.id + 1)),
+            300
+          );
+          this.nextHistId = Math.max(
+            this.nextHistId,
+            ...(detail.historial.map((h) => h.id + 1)),
+            400
+          );
         },
         error: (e) => {
           this.lastError = this.humanHttpError(e);
-        }
+        },
       });
   }
 
@@ -523,7 +595,8 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
           .from(card, { y: 8, opacity: 0, duration: 0.4 }, '-=0.22');
 
         gsap.to([head, tabs].filter(Boolean), {
-          boxShadow: '0 0 0 6px rgba(0,74,173,.06), 0 18px 60px rgba(0,74,173,.10)',
+          boxShadow:
+            '0 0 0 6px rgba(0,74,173,.06), 0 18px 60px rgba(0,74,173,.10)',
           duration: 2.8,
           repeat: -1,
           yoyo: true,
@@ -583,11 +656,21 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   get resumen(): Resumen {
-    const medsPend = this.residente.medicacion.filter((m) => m.estado === 'pendiente').length;
-    const medsAtras = this.residente.medicacion.filter((m) => m.estado === 'atrasada').length;
-    const medsAdmin = this.residente.medicacion.filter((m) => m.estado === 'administrada').length;
-    const obsAlert = this.residente.observaciones.filter((o) => o.tipo === 'alerta').length;
-    const lastSigno = this.residente.signos.length ? this.residente.signos[0] : null;
+    const medsPend = this.residente.medicacion.filter(
+      (m) => m.estado === 'pendiente'
+    ).length;
+    const medsAtras = this.residente.medicacion.filter(
+      (m) => m.estado === 'atrasada'
+    ).length;
+    const medsAdmin = this.residente.medicacion.filter(
+      (m) => m.estado === 'administrada'
+    ).length;
+    const obsAlert = this.residente.observaciones.filter(
+      (o) => o.tipo === 'alerta'
+    ).length;
+    const lastSigno = this.residente.signos.length
+      ? this.residente.signos[0]
+      : null;
 
     return { medsPend, medsAtras, medsAdmin, obsAlert, lastSigno };
   }
@@ -613,22 +696,19 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
     this.pdfLoading = true;
     this.lastError = null;
 
-    // ✅ forzamos modo lectura
     this.exportMode = true;
     this.cancelMedEdit();
     this.cancelObsEdit();
 
-    // render DOM ya con exportMode
     this.cdr.detectChanges();
-    await new Promise<void>(r => requestAnimationFrame(() => r()));
-    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
     try {
       const mod: any = await import('html2pdf.js');
       const html2pdf: any = mod?.default ?? mod;
 
       const el = this.pdfRoot.nativeElement;
-
       const filename = `residente-${this.residente?.id || this.id}.pdf`;
 
       await html2pdf()
@@ -646,11 +726,12 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
             scrollX: 0,
             scrollY: 0,
           },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         })
         .save();
     } catch (e) {
-      this.lastError = 'No se pudo generar el PDF. Revisá instalación de html2pdf.js y typings.';
+      this.lastError =
+        'No se pudo generar el PDF. Revisá instalación de html2pdf.js y typings.';
     } finally {
       this.exportMode = false;
       this.pdfLoading = false;
@@ -663,57 +744,80 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
      POST /enfermeria/residentes/:id/vitals
   ========================= */
   guardarSignos(): void {
-    if (!this.temp.trim() && !this.presion.trim() && !this.pulso.trim()) return;
-    if (!this.id) return;
+  if (!this.id) return;
 
-    this.saving = true;
-    this.lastError = null;
+  // ✅ tomamos valores LIMPIOS
+  const rawTemp = String(this.temp ?? '').trim();
+  const rawPresion = String(this.presion ?? '').trim();
+  const rawPulso = String(this.pulso ?? '').trim();
 
-    this.http
-      .post<ApiEnvelope<any> | any>(
-        `${this.API}/enfermeria/residentes/${this.id}/vitals`,
-        {
-          temperature: this.temp.trim() || null,
-          blood_pressure: this.presion.trim() || null,
-          pulse: this.pulso.trim() || null,
-          measured_at: new Date().toISOString()
-        },
-        { headers: this.authHeaders() }
-      )
-      .pipe(
-        take(1),
-        finalize(() => (this.saving = false))
-      )
-      .subscribe({
-        next: () => {
-          this.temp = '';
-          this.presion = '';
-          this.pulso = '';
-          this.loadDetalle();
-        },
-        error: (e) => (this.lastError = this.humanHttpError(e))
-      });
+  console.log('[RAW INPUTS]', {
+    temp: rawTemp,
+    presion: rawPresion,
+    pulso: rawPulso,
+  });
+
+  const tempNum = this.toNumberOrNull(rawTemp);
+  const hrNum = this.toIntOrNull(rawPulso);
+  const bp = this.parseBloodPressure(rawPresion);
+
+  console.log('[PARSED]', {
+    tempNum,
+    hrNum,
+    bp,
+  });
+
+  if (tempNum === null && hrNum === null && !bp) {
+    this.lastError = 'Ingresá al menos un valor válido (ej: 36.5, 120/80, 80).';
+    return;
   }
 
-  /* =========================
-     MEDICACIÓN (Backend)
-     POST /enfermeria/residentes/:id/medications
-  ========================= */
+  this.saving = true;
+  this.lastError = null;
+
+  const body: any = { taken_at: new Date().toISOString() };
+
+  if (tempNum !== null) body.temp_c = tempNum;
+  if (hrNum !== null) body.hr = hrNum;
+  if (bp) {
+    body.bp_systolic = bp.systolic;
+    body.bp_diastolic = bp.diastolic;
+  }
+
+  console.log('[POST /vitals BODY]', body);
+
+  this.http
+    .post(`${this.API}/enfermeria/residentes/${this.id}/vitals`, body, {
+      headers: this.authHeaders(),
+    })
+    .pipe(take(1), finalize(() => (this.saving = false)))
+    .subscribe({
+      next: () => {
+        this.temp = '';
+        this.presion = '';
+        this.pulso = '';
+        this.loadDetalle();
+      },
+      error: (e) => (this.lastError = this.humanHttpError(e)),
+    });
+}
+
+
+
+  // ---- MEDS / OBS (igual que tenías)
   startMedEdit(row: MedicacionRow): void {
     this.editingMedId = row.id;
     this.medDraft = { ...row };
   }
-
   cancelMedEdit(): void {
     this.editingMedId = null;
     this.medDraft = {};
   }
-
   saveMedEdit(): void {
-    this.lastError = 'Editar medicación aún no está conectado al backend (faltan endpoints PATCH meds/:id).';
+    this.lastError =
+      'Editar medicación aún no está conectado al backend (faltan endpoints PATCH meds/:id).';
     this.cancelMedEdit();
   }
-
   addMedMock(): void {
     if (!this.id) return;
 
@@ -737,14 +841,11 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
           status: 'pending',
           scheduled_at: scheduledAtIso,
           administered_at: null,
-          notes: null
+          notes: null,
         },
         { headers: this.authHeaders() }
       )
-      .pipe(
-        take(1),
-        finalize(() => (this.saving = false))
-      )
+      .pipe(take(1), finalize(() => (this.saving = false)))
       .subscribe({
         next: () => {
           this.newMedNombre = '';
@@ -752,33 +853,99 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
           this.newMedHora = '08:00';
           this.loadDetalle();
         },
-        error: (e) => (this.lastError = this.humanHttpError(e))
+        error: (e) => (this.lastError = this.humanHttpError(e)),
       });
   }
+  // ==========================================================
+// MEDICACIÓN — actualizar estado (backend real)
+// ==========================================================
+private mapMedEstadoToBackend(status: MedEstado): 'pending' | 'administered' | 'late' | 'suspended' {
+  if (status === 'administrada') return 'administered';
+  if (status === 'atrasada') return 'late';
+  if (status === 'suspendida') return 'suspended';
+  return 'pending';
+}
 
-  setMedEstado(_: MedicacionRow, __: MedEstado): void {
-    this.lastError = 'Cambiar estado de medicación aún no está conectado (faltan endpoints PATCH meds/:id).';
+private buildMedicationUpdatePayload(newEstado: MedEstado): any {
+  const backendStatus = this.mapMedEstadoToBackend(newEstado);
+
+  // ✅ payload mínimo (seguro)
+  const payload: any = { status: backendStatus };
+
+  // ✅ si la marcás administrada, tiene sentido guardar cuándo
+  if (backendStatus === 'administered') {
+    payload.administered_at = new Date().toISOString();
   }
 
-  /* =========================
-     OBSERVACIONES (Backend)
-     POST /enfermeria/residentes/:id/observations
-  ========================= */
+  return payload;
+}
+
+setMedEstado(row: MedicacionRow, estado: MedEstado): void {
+  if (!this.id || !row?.id) return;
+
+  // ✅ Optimistic UI (para que se vea instantáneo)
+  const prevEstado = row.estado;
+  row.estado = estado;
+
+  this.saving = true;
+  this.lastError = null;
+
+  const payload = this.buildMedicationUpdatePayload(estado);
+
+  // ✅ Endpoint 1 (recomendado / común)
+  const url1 = `${this.API}/enfermeria/medications/${row.id}`;
+
+  // ✅ Endpoint 2 (fallback por si tu backend lo montó así)
+  const url2 = `${this.API}/enfermeria/residentes/${this.id}/medications/${row.id}`;
+
+  // Intento #1 -> si 404/405 -> Intento #2
+  this.http
+    .patch<ApiEnvelope<any> | any>(url1, payload, { headers: this.authHeaders() })
+    .pipe(
+      take(1),
+      catchError((e1) => {
+        // Si el backend no soporta ese path, probamos el otro
+        const statusCode = (e1 as any)?.status;
+
+        // 404 Not Found | 405 Method Not Allowed => fallback
+        if (statusCode === 404 || statusCode === 405) {
+          return this.http
+            .patch<ApiEnvelope<any> | any>(url2, payload, { headers: this.authHeaders() })
+            .pipe(take(1));
+        }
+
+        // otro error => lo tiramos
+        throw e1;
+      }),
+      finalize(() => (this.saving = false))
+    )
+    .subscribe({
+      next: () => {
+        // ✅ refresca datos reales desde DB/timeline
+        this.loadDetalle();
+      },
+      error: (e) => {
+        // ❌ revertimos optimistic
+        row.estado = prevEstado;
+        this.lastError = this.humanHttpError(e);
+      },
+    });
+}
+
+
   startObsEdit(row: ObservacionRow): void {
     this.editingObsId = row.id;
     this.obsDraft = { ...row };
   }
-
   cancelObsEdit(): void {
     this.editingObsId = null;
     this.obsDraft = {};
   }
-
   saveObsEdit(): void {
-    this.lastError = 'Editar observación aún no está conectado al backend (faltan endpoints PATCH observations/:id).';
+    this.lastError =
+      'Editar observación aún no está conectado al backend (faltan endpoints PATCH observations/:id).';
     this.cancelObsEdit();
   }
-
   addObsMock(): void {
     if (!this.id) return;
 
@@ -794,21 +961,18 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
         {
           type: this.newObsTipo,
           text: txt,
-          observed_at: new Date().toISOString()
+          observed_at: new Date().toISOString(),
         },
         { headers: this.authHeaders() }
       )
-      .pipe(
-        take(1),
-        finalize(() => (this.saving = false))
-      )
+      .pipe(take(1), finalize(() => (this.saving = false)))
       .subscribe({
         next: () => {
           this.newObsText = '';
           this.newObsTipo = 'normal';
           this.loadDetalle();
         },
-        error: (e) => (this.lastError = this.humanHttpError(e))
+        error: (e) => (this.lastError = this.humanHttpError(e)),
       });
   }
 
@@ -838,13 +1002,54 @@ export class ResidenteDetallePage implements OnInit, AfterViewInit, OnDestroy {
   // Utils
   // -------------------------
   private combineTodayTimeToIso(hhmm: string): string {
-    const [h, m] = (hhmm || '00:00').split(':').map(x => Number(x));
+    const [h, m] = (hhmm || '00:00').split(':').map((x) => Number(x));
     const d = new Date();
-    d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+    d.setHours(
+      Number.isFinite(h) ? h : 0,
+      Number.isFinite(m) ? m : 0,
+      0,
+      0
+    );
     return d.toISOString();
   }
 
-  trackById(_: number, row: { id: number }): number {
-    return row.id;
+  private toNumberOrNull(v: any): number | null {
+    const raw = String(v ?? '').trim();
+    if (!raw) return null;
+
+    const cleaned = raw.replace(',', '.');
+    const m = cleaned.match(/-?\d+(\.\d+)?/);
+    if (!m) return null;
+
+    const n = Number(m[0]);
+    return Number.isFinite(n) ? n : null;
   }
+
+  private toIntOrNull(v: any): number | null {
+    const raw = String(v ?? '').trim();
+    if (!raw) return null;
+
+    const m = raw.match(/\d{1,3}/);
+    if (!m) return null;
+
+    const n = parseInt(m[0], 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private parseBloodPressure(v: string): { systolic: number; diastolic: number } | null {
+    const raw = String(v ?? '').trim();
+    if (!raw) return null;
+
+    const m = raw.match(/(\d{2,3})\s*(\/|-|x|\s)\s*(\d{2,3})/i);
+    if (!m) return null;
+
+    const sys = parseInt(m[1], 10);
+    const dia = parseInt(m[3], 10);
+
+    if (!Number.isFinite(sys) || !Number.isFinite(dia)) return null;
+    return { systolic: sys, diastolic: dia };
+  }
+
+  // ✅ FIX COMPILACIÓN: usado en *ngFor trackBy
+  trackById = (_: number, row: { id: number }) => row.id;
 }

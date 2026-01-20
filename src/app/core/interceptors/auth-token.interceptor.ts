@@ -14,18 +14,76 @@ const LEGACY_TOKEN_KEYS = [
   'servimel_token_v0',
 ];
 
-function readToken(): string | null {
-  const direct = localStorage.getItem(TOKEN_KEY);
-  if (direct && direct.trim()) return direct.trim();
+function normalizeToken(raw: any): string | null {
+  if (raw == null) return null;
 
+  let v = String(raw).trim();
+  if (!v) return null;
+
+  // Si guardaron algo tipo "Bearer eyJ..."
+  v = v.replace(/^Bearer\s+/i, '').trim();
+
+  // Si quedó guardado con comillas: "eyJ..."
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+
+  // Si guardaron un JSON en vez del token
+  if (v.startsWith('{') && v.endsWith('}')) {
+    try {
+      const obj = JSON.parse(v);
+      const cand =
+        obj?.token ||
+        obj?.accessToken ||
+        obj?.access_token ||
+        obj?.jwt ||
+        obj?.data?.token ||
+        obj?.data?.accessToken ||
+        null;
+
+      if (cand) return normalizeToken(cand);
+    } catch {
+      // noop
+    }
+  }
+
+  // Validación mínima
+  if (v.length < 10) return null;
+  return v;
+}
+
+function readTokenFrom(storage: Storage, key: string): string | null {
+  try {
+    const raw = storage.getItem(key);
+    return normalizeToken(raw);
+  } catch {
+    return null;
+  }
+}
+
+function readToken(): string | null {
+  // 1) KEY oficial primero
+  const direct =
+    readTokenFrom(localStorage, TOKEN_KEY) ||
+    readTokenFrom(sessionStorage, TOKEN_KEY);
+
+  if (direct) return direct;
+
+  // 2) Keys viejas (local + session)
   for (const k of LEGACY_TOKEN_KEYS) {
-    const v = localStorage.getItem(k);
-    if (v && v.trim()) {
+    const v =
+      readTokenFrom(localStorage, k) ||
+      readTokenFrom(sessionStorage, k);
+
+    if (v) {
       // migración silenciosa
       try {
-        localStorage.setItem(TOKEN_KEY, v.trim());
+        localStorage.setItem(TOKEN_KEY, v);
       } catch {}
-      return v.trim();
+      return v;
     }
   }
 

@@ -1,4 +1,4 @@
-<!-- residente-detalle.page.html -->
+<!-- src/app/pages/residente-detalle/residente-detalle.page.html -->
 <section
   #pdfRoot
   class="page page-enter"
@@ -101,65 +101,91 @@
     </nav>
 
     <!-- TAB: SIGNOS (APP) -->
-    <section class="card" *ngIf="tab==='signos'">
-      <div class="cardTop">
-        <h3>Registrar signos vitales</h3>
-        <span class="hint">Se guarda en timeline + auditoría (mock).</span>
-      </div>
+<section class="card" *ngIf="tab==='signos'">
+  <div class="cardTop">
+    <h3>Registrar signos vitales</h3>
+    <span class="hint">Se guarda en el backend (timeline).</span>
+  </div>
 
-      <div class="form">
-        <label class="field">
-          <span>Temperatura (°C)</span>
-          <input [(ngModel)]="temp" placeholder="Ej: 36.7" inputmode="decimal" />
-        </label>
+  <div class="form">
+    <label class="field">
+      <span>Temperatura (°C)</span>
+      <input
+        name="temp"
+        type="text"
+        [(ngModel)]="temp"
+        [ngModelOptions]="{ standalone: true }"
+        placeholder="Ej: 36.7"
+        inputmode="decimal"
+        autocomplete="off"
+      />
+    </label>
 
-        <label class="field">
-          <span>Presión</span>
-          <input [(ngModel)]="presion" placeholder="Ej: 120/80" />
-        </label>
+    <label class="field">
+      <span>Presión</span>
+      <input
+        name="presion"
+        type="text"
+        [(ngModel)]="presion"
+        [ngModelOptions]="{ standalone: true }"
+        placeholder="Ej: 120/80"
+        autocomplete="off"
+      />
+    </label>
 
-        <label class="field">
-          <span>Pulso</span>
-          <input [(ngModel)]="pulso" placeholder="Ej: 78" inputmode="numeric" />
-        </label>
-      </div>
+    <label class="field">
+      <span>Pulso</span>
+      <input
+        name="pulso"
+        type="text"
+        [(ngModel)]="pulso"
+        [ngModelOptions]="{ standalone: true }"
+        placeholder="Ej: 78"
+        inputmode="numeric"
+        autocomplete="off"
+      />
+    </label>
+  </div>
 
-      <button type="button" class="btn btn--primary" (click)="guardarSignos()">Guardar</button>
+  <button type="button" class="btn btn--primary" (click)="guardarSignos()">
+    Guardar
+  </button>
 
-      <div class="tableWrap" *ngIf="residente.signos.length > 0">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Temp</th>
-              <th>Presión</th>
-              <th>Pulso</th>
-              <th>Usuario</th>
-            </tr>
-          </thead>
+  <div class="tableWrap" *ngIf="residente.signos.length > 0">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Temp</th>
+          <th>Presión</th>
+          <th>Pulso</th>
+          <th>Usuario</th>
+        </tr>
+      </thead>
 
-          <tbody>
-            <tr *ngFor="let s of residente.signos; trackBy: trackById">
-              <td class="mono">{{ s.fecha | date:'dd/MM HH:mm' }}</td>
-              <td>{{ s.temp }}</td>
-              <td>{{ s.presion }}</td>
-              <td>{{ s.pulso }}</td>
-              <td>{{ s.by }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <tbody>
+        <tr *ngFor="let s of residente.signos; trackBy: trackById">
+          <td class="mono">{{ s.fecha | date:'dd/MM HH:mm' }}</td>
+          <td>{{ s.temp }}</td>
+          <td>{{ s.presion }}</td>
+          <td>{{ s.pulso }}</td>
+          <td>{{ s.by }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
-      <div class="placeholder small" *ngIf="residente.signos.length === 0">
-        Sin signos cargados todavía.
-      </div>
-    </section>
+  <div class="placeholder small" *ngIf="residente.signos.length === 0">
+    Sin signos cargados todavía.
+  </div>
+</section>
+
 
     <!-- TAB: MEDICACIÓN (APP) -->
     <section class="card" *ngIf="tab==='medicacion'">
       <div class="cardTop">
         <h3>Tratamientos y medicación</h3>
-        <p class="muted">Tabla editable + estados con destaque visual + auditoría por usuario.</p>
+        <p class="muted">Tabla editable + estados con destaque visual.</p>
       </div>
 
       <div class="form form--inline">
@@ -236,10 +262,9 @@
                 </td>
 
                 <td class="right">
-                  <button type="button" class="btn btn--tiny" (click)="startMedEdit(m)">Editar</button>
-                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'administrada')">OK</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'administrada')">Administrada</button>
                   <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'atrasada')">Atrasada</button>
-                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'suspendida')">Susp.</button>
+                  <button type="button" class="btn btn--tiny btn--ghost" (click)="setMedEstado(m,'suspendida')">Suspendida</button>
                 </td>
               </ng-template>
             </tr>
@@ -256,7 +281,7 @@
     <section class="card" *ngIf="tab==='observaciones'">
       <div class="cardTop">
         <h3>Observaciones de enfermería</h3>
-        <p class="muted">Tabla editable + alertas destacadas + auditoría por usuario.</p>
+        <p class="muted">Tabla editable + alertas destacadas.</p>
       </div>
 
       <div class="form form--inline">
@@ -342,7 +367,7 @@
     <section class="card" *ngIf="tab==='historial'">
       <div class="cardTop">
         <h3>Historial clínico automático</h3>
-        <p class="muted">Timeline (signos + medicación + observaciones) + auditoría.</p>
+        <p class="muted">Timeline (signos + medicación + observaciones).</p>
       </div>
 
       <div class="timeline" *ngIf="residente.historial.length > 0; else histEmpty">
