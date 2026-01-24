@@ -1,7 +1,7 @@
 // F6 — src/app/shared/services/auth.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, firstValueFrom, map } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, map, Observable } from 'rxjs';
 import { API_CONFIG } from '../../core/config/api.config';
 import { unwrapApi, ApiResponse } from '../../core/utils/api-unwrap';
 
@@ -24,7 +24,11 @@ export class AuthService {
   // ✅ Fuente única reactiva de usuario
   private _user$ = new BehaviorSubject<AnyUser | null>(null);
 
-  // Compat con código que usa currentUser / user
+  // ✅ Standard: Observable para subscribirse (lo que te faltaba)
+  readonly user$: Observable<AnyUser | null> = this._user$.asObservable();
+
+  // ✅ Compat con código viejo que usa auth.user / auth.currentUser
+  // (OJO: esto es el BehaviorSubject, como ya lo tenías)
   user = this._user$;
   currentUser = this._user$;
 
@@ -133,6 +137,12 @@ export class AuthService {
     this._user$.next(null);
   }
 
+  // ✅ Compat: muchas pantallas llaman auth.logout()
+  // No invento endpoint; solo limpio storage.
+  async logout(): Promise<void> {
+    this.clearSession();
+  }
+
   // ============================================================
   // Compat getters usados en páginas
   // ============================================================
@@ -175,8 +185,8 @@ export class AuthService {
   async login(a: any, b?: any): Promise<any> {
     const payload =
       typeof a === 'string'
-        ? { email: String(a), password: String(b ?? '') }
-        : { email: String(a?.email ?? ''), password: String(a?.password ?? '') };
+        ? { email: String(a || '').trim(), password: String(b ?? '').trim() }
+        : { email: String(a?.email ?? '').trim(), password: String(a?.password ?? '').trim() };
 
     const url = `${API_CONFIG.baseUrl}/auth/login`;
 

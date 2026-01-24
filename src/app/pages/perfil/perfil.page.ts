@@ -17,7 +17,7 @@
 // - kpiAlertas: cantidad de eventos "críticos" del usuario en últimos 7 días (desde historiales)
 //
 // ✅ Guardar perfil REAL (SIN MOCK):
-// - PATCH /auth/me  (incluye avatar_url)
+// - PATCH /auth/me  ✅ usa avatar_url (DB-aligned)
 //
 // ✅ Cambiar contraseña REAL (SIN MOCK) + “funciona”:
 // - POST /auth/change-password
@@ -77,7 +77,7 @@ type UserProfile = {
   role: Role;
   email: string;
   phone: string;
-  avatar_url: string;
+  avatar_url: string; // ✅ DB: avatar_url
   status: UserStatus;
 };
 
@@ -88,7 +88,7 @@ type MeApiResponse = {
   first_name: string;
   last_name: string;
   phone: string | null;
-  avatar_url: string | null;
+  avatar_url: string | null; // ✅ DB: avatar_url
   is_active: number | boolean;
   status?: UserStatus | null;
 };
@@ -183,7 +183,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
     role: 'enfermeria',
     email: '',
     phone: '',
-    avatar_url: this.DEFAULT_AVATAR,
+    avatar_url: this.DEFAULT_AVATAR, // ✅ DB: avatar_url
     status: 'activo'
   };
 
@@ -209,7 +209,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
     last_name: FormControl<string>;
     phone: FormControl<string>;
     email: FormControl<string>;
-    avatar_url: FormControl<string>;
+    avatar_url: FormControl<string>; // ✅ DB: avatar_url
   }>;
 
   passForm!: FormGroup<{
@@ -256,6 +256,27 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
 
     // forms
     this.buildForms();
+  }
+
+  // ============================================================
+  // ✅ Error helper (para no confundir “conexión” con backend)
+  // ============================================================
+  private explainHttpError(e: any): string {
+    const status = Number(e?.status ?? -1);
+
+    // status 0 => CORS / DNS / bloqueado / URL incorrecta / backend caído
+    if (status === 0) {
+      const url = String(e?.url ?? '');
+      return `No pude conectar con el backend (status 0). URL: ${url || '—'}`;
+    }
+
+    const msg =
+      e?.error?.message ||
+      e?.error?.error?.message ||
+      e?.message ||
+      `Error HTTP ${status}`;
+
+    return String(msg);
   }
 
   // ============================================================
@@ -495,6 +516,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         role: safeRole,
         email: String(me.email ?? '').trim(),
         phone: String(me.phone ?? '').trim(),
+        // ✅ DB: avatar_url
         avatar_url: me.avatar_url && String(me.avatar_url).trim()
           ? String(me.avatar_url).trim()
           : this.DEFAULT_AVATAR,
@@ -508,6 +530,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         last_name: mapped.last_name,
         phone: mapped.phone,
         email: mapped.email,
+        // ✅ DB: avatar_url
         avatar_url: mapped.avatar_url
       }, { emitEvent: false });
 
@@ -576,7 +599,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
   private isTruthyActive(v: any): boolean {
     if (v === true) return true;
     if (v === false) return false;
-    if (v == null) return true; // si no viene, asumimos activo (mejor UX)
+    if (v == null) return true;
     if (typeof v === 'number') return v === 1;
     const s = String(v).trim().toLowerCase();
     if (!s) return true;
@@ -686,7 +709,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         .slice(0, 120)
         .map(ev => this.mapActivityFromTimeline(ev));
 
-      this.activity = filtered; // ✅ puede quedar vacío
+      this.activity = filtered;
     } finally {
       this.activityLoading = false;
     }
@@ -759,6 +782,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         nonNullable: true,
         validators: [Validators.required, Validators.email, Validators.maxLength(80)]
       }),
+      // ✅ DB: avatar_url (NO avatarUrl, NO avatar)
       avatar_url: this.fb.control<string>(this.profile.avatar_url, {
         nonNullable: true,
         validators: [Validators.required, Validators.maxLength(280)]
@@ -898,12 +922,14 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const v = this.editForm.getRawValue();
+
+    // ✅ DB-ALIGNED payload (avatar_url)
     const payload = {
       first_name: v.first_name.trim(),
       last_name: v.last_name.trim(),
       phone: v.phone.trim(),
       email: v.email.trim(),
-      avatar_url: v.avatar_url.trim()
+      avatar_url: v.avatar_url.trim() // ✅ DB: avatar_url
     };
 
     try {
@@ -936,7 +962,8 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         last_name: String(me.last_name ?? payload.last_name).trim(),
         email: String(me.email ?? payload.email).trim(),
         phone: String(me.phone ?? payload.phone).trim(),
-        avatar_url: me.avatar_url && String(me.avatar_url).trim()
+        // ✅ DB: avatar_url (prioridad respuesta backend, fallback payload)
+        avatar_url: (me.avatar_url && String(me.avatar_url).trim())
           ? String(me.avatar_url).trim()
           : (payload.avatar_url || this.DEFAULT_AVATAR),
         status: (me.status as UserStatus | null) ?? (isActive ? 'activo' : 'fuera')
@@ -948,14 +975,14 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         last_name: this.profile.last_name,
         phone: this.profile.phone,
         email: this.profile.email,
-        avatar_url: this.profile.avatar_url
+        avatar_url: this.profile.avatar_url // ✅ DB: avatar_url
       }, { emitEvent: false });
 
-      this.persistProfile(); // cache local
+      this.persistProfile();
       this.toast('ok', 'Perfil actualizado', 'Avatar y datos guardados en el sistema.');
       this.sparkPulse('.js-pulse-edit');
     } catch (e: any) {
-      this.toast('error', 'No se pudo guardar', String(e?.message || 'Error al actualizar perfil.'));
+      this.toast('error', 'No se pudo guardar', this.explainHttpError(e));
       this.bumpInvalid();
     }
   }
@@ -1019,28 +1046,23 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
     };
 
     try {
-      // ✅ SIEMPRE Bearer (no dependemos de cookies)
       const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
 
-      // soporta: 204/empty, o JSON cualquiera
       const raw = await this.postJson<ChangePassOk | ApiEnvelope<any> | any>(
         '/auth/change-password',
         body,
         { headers, withCredentials: true }
       );
 
-      // si viene envelope ok:false -> tira error en unwrap
       try { this.unwrap<any>(raw as any); } catch (err: any) { throw err; }
 
       this.toast('ok', 'Contraseña actualizada', 'Cambio aplicado.');
       this.sparkPulse('.js-pulse-security');
 
-      // reset prolijo + cerrar modal
       this.passForm.reset({ actual: '', nueva: '', repetir: '' });
       this.cerrarModalPassword();
     } catch (e: any) {
-      const msg = String(e?.message || 'Error al cambiar contraseña.');
-      this.toast('error', 'No se pudo cambiar', msg);
+      this.toast('error', 'No se pudo cambiar', this.explainHttpError(e));
       this.bumpInvalid();
     }
   }
@@ -1420,9 +1442,22 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
         role: (parsed.role ?? parsed.rol ?? this.profile.role) as Role,
         email: String(parsed.email ?? this.profile.email),
         phone: String(parsed.phone ?? parsed.telefono ?? this.profile.phone),
-        avatar_url: String(parsed.avatar_url ?? parsed.avatarUrl ?? this.profile.avatar_url),
+
+        // ✅ Acepta caches viejos, pero SIEMPRE guarda en avatar_url
+        avatar_url: String(
+          parsed.avatar_url ??
+          parsed.avatarUrl ??           // legacy
+          parsed.avatar ??              // legacy
+          parsed.avatarURL ??           // legacy
+          this.profile.avatar_url
+        ),
+
         status: (parsed.status ?? parsed.estado ?? this.profile.status) as UserStatus
       };
+
+      if (!migrated.avatar_url || !String(migrated.avatar_url).trim()) {
+        migrated.avatar_url = this.DEFAULT_AVATAR;
+      }
 
       this.profile = { ...this.profile, ...migrated } as UserProfile;
     } catch {
@@ -1433,6 +1468,7 @@ export class PerfilPage implements OnInit, AfterViewInit, OnDestroy {
   private persistProfile(): void {
     if (!this.isBrowser) return;
     try {
+      // ✅ Guarda DB-aligned: avatar_url
       window.localStorage.setItem(this.LS_PROFILE, JSON.stringify(this.profile));
     } catch {
       // ignore

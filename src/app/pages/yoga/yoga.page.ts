@@ -2,7 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, map } from 'rxjs';
 
 import { AuthService } from '../../shared/services/auth.service';
@@ -17,6 +17,7 @@ type Role =
   | 'profesor'
   | 'coordinacion'
   | 'instructor'
+  | 'ed-fisico'
   | 'sin-rol'
   | string;
 
@@ -135,6 +136,41 @@ export class YogaPage implements OnInit {
   }
 
   // ============================================================
+  // AUTH headers (por si el backend está protegido)
+  // ============================================================
+  private getToken(): string | null {
+    const keys = [
+      'servimel_token_v1',
+      'servimel_token',
+      'auth_token',
+      'token',
+      'jwt',
+      'access_token',
+    ];
+
+    for (const k of keys) {
+      try {
+        const v = localStorage.getItem(k);
+        if (v && v.trim()) return v.trim();
+      } catch {}
+    }
+
+    // fallback si AuthService expone token
+    const t =
+      this.auth?.token ||
+      this.auth?.accessToken ||
+      this.auth?.getToken?.() ||
+      null;
+
+    return typeof t === 'string' && t.trim() ? t.trim() : null;
+  }
+
+  private authHeaders(): HttpHeaders {
+    const t = this.getToken();
+    return t ? new HttpHeaders({ Authorization: `Bearer ${t}` }) : new HttpHeaders();
+  }
+
+  // ============================================================
   // ✅ API BASE REAL
   // ============================================================
   private apiBase(): string {
@@ -193,34 +229,47 @@ export class YogaPage implements OnInit {
       (this.auth?.currentUserValue?.rol as Role) ??
       'sin-rol';
 
-    let fromLS: Role = 'sin-rol';
+    const fromLS: Role = this.tryReadRoleFromLocalStorage();
+
+    const detected = normalize(fromAuth || fromLS || 'sin-rol') || 'sin-rol';
+    this.role = detected;
+
+    // ✅ FIX: roles correctos para editar Yoga
+    const EDIT_ROLES = new Set<string>(['admin', 'yoga', 'ed-fisico']);
+    this.canEdit = EDIT_ROLES.has(detected);
+  }
+
+  private tryReadRoleFromLocalStorage(): Role {
     try {
       const raw =
         localStorage.getItem('servimel_user_v1') ||
         localStorage.getItem('servimel_user') ||
         localStorage.getItem('user') ||
         localStorage.getItem('currentUser') ||
+        localStorage.getItem('auth_user') ||
         '';
 
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        fromLS = (parsed?.role || parsed?.rol || parsed?.userRole || 'sin-rol') as Role;
-      }
-    } catch {}
+      if (!raw) return 'sin-rol';
 
-    const detected = normalize(fromAuth || fromLS || 'sin-rol') || 'sin-rol';
-    this.role = detected;
+      // si viene string plano (ej: "admin")
+      if (raw.length < 80 && !raw.trim().startsWith('{')) return raw as Role;
 
-    const EDIT_ROLES = new Set<string>([
-      'admin',
-      'instructor',
-      'yoga',
-      'profesor',
-      'coordinacion',
-      'medico',
-    ]);
+      const parsed = JSON.parse(raw);
 
-    this.canEdit = EDIT_ROLES.has(detected);
+      const cand =
+        parsed?.role ??
+        parsed?.rol ??
+        parsed?.userRole ??
+        parsed?.user?.role ??
+        parsed?.user?.rol ??
+        parsed?.data?.role ??
+        parsed?.data?.rol ??
+        'sin-rol';
+
+      return (typeof cand === 'string' && cand.trim() ? cand : 'sin-rol') as Role;
+    } catch {
+      return 'sin-rol';
+    }
   }
 
   // ============================================================
@@ -246,16 +295,13 @@ export class YogaPage implements OnInit {
     return Array.isArray(a) ? a : [];
   }
 
-  // ✅ FIX: soporta wrappers PROFUNDOS
   private pickPlan(payload: any): YogaWeekPlan | null {
     if (!payload) return null;
 
-    // 1) plano
     if (payload?.residentId && payload?.weekStartISO && Array.isArray(payload?.days)) {
       return payload as YogaWeekPlan;
     }
 
-    // 2) wrappers comunes
     const candidates = [
       payload?.plan,
       payload?.data,
@@ -288,7 +334,7 @@ export class YogaPage implements OnInit {
     const url = this.endpoint('/residentes?limit=200&offset=0');
 
     this.http
-      .get<ApiResponse<any> | any>(url)
+      .get<ApiResponse<any> | any>(url, { headers: this.authHeaders() })
       .pipe(
         map((res: any) => {
           try {
@@ -386,7 +432,7 @@ export class YogaPage implements OnInit {
     const url = this.endpoint('/servicios/yoga');
 
     this.http
-      .get<ApiResponse<any> | any>(url)
+      .get<ApiResponse<any> | any>(url, { headers: this.authHeaders() })
       .pipe(
         map((res: any) => {
           try {
@@ -447,7 +493,7 @@ export class YogaPage implements OnInit {
 
     try {
       const raw = await firstValueFrom(
-        this.http.get<ApiResponse<any> | any>(url).pipe(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }).pipe(
           map((res: any) => {
             try {
               return unwrapApi<any>(res as ApiResponse<any>);
@@ -520,7 +566,7 @@ export class YogaPage implements OnInit {
 
     try {
       const raw = await firstValueFrom(
-        this.http.get<ApiResponse<any> | any>(url).pipe(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }).pipe(
           map((res: any) => {
             try {
               return unwrapApi<any>(res as ApiResponse<any>);
@@ -565,7 +611,6 @@ export class YogaPage implements OnInit {
     const mapByDate = new Map<string, YogaDaySession>();
     (plan?.days || []).forEach((d: any) => {
       if (d?.dateISO) mapByDate.set(String(d.dateISO), d);
-      // 🛟 si te llegara "date" en vez de dateISO por algo raro:
       if (!d?.dateISO && d?.date) mapByDate.set(String(d.date), { ...d, dateISO: String(d.date) });
     });
 
@@ -628,7 +673,6 @@ export class YogaPage implements OnInit {
     };
   }
 
-  // ✅ FIX: manda { plan } + fuerza repaint con clones
   private async saveActivePlan(silent = false): Promise<void> {
     if (!this.activePlan) return;
     if (this.activeResidentId == null) return;
@@ -655,9 +699,8 @@ export class YogaPage implements OnInit {
     );
 
     try {
-      // ✅ contrato más compatible
       const res = await firstValueFrom(
-        this.http.put<ApiResponse<any> | any>(url, { plan }).pipe(
+        this.http.put<ApiResponse<any> | any>(url, { plan }, { headers: this.authHeaders() }).pipe(
           map((r: any) => {
             try {
               return unwrapApi<any>(r as ApiResponse<any>);
@@ -673,7 +716,6 @@ export class YogaPage implements OnInit {
       if (saved) {
         this.activePlan = this.normalizePlan(saved, this.activeResidentId, this.weekKey);
       } else {
-        // igual lo dejamos en UI
         this.activePlan = { ...plan, days: [...plan.days] };
       }
 
@@ -799,7 +841,6 @@ export class YogaPage implements OnInit {
       notes: day.notes || '',
     });
 
-    // ✅ fuerza render de drawer
     this.cdr.detectChanges();
   }
 
@@ -834,7 +875,6 @@ export class YogaPage implements OnInit {
       notes: String(v.notes || ''),
     };
 
-    // ✅ CLONE para forzar repaint
     const nextDays = [...plan.days];
     nextDays[idx] = nextDay;
 
@@ -932,7 +972,7 @@ export class YogaPage implements OnInit {
 
     try {
       const res = await firstValueFrom(
-        this.http.post<ApiResponse<any> | any>(url, payload).pipe(
+        this.http.post<ApiResponse<any> | any>(url, payload, { headers: this.authHeaders() }).pipe(
           map((r: any) => {
             try {
               return unwrapApi<any>(r as ApiResponse<any>);
@@ -953,7 +993,7 @@ export class YogaPage implements OnInit {
           this.sequences = [found, ...this.sequences.filter((s) => String(s.id) !== cid)];
         }
       }
-    } catch (e) {
+    } catch {
       const seq: YogaSequence = {
         id: `seq_${Date.now()}_${Math.random().toString(16).slice(2)}`,
         name: `Flow: ${item.title}`,
@@ -975,7 +1015,7 @@ export class YogaPage implements OnInit {
       const url = this.endpoint(`/yoga/sequences/${encodeURIComponent(String(id))}`);
       try {
         await firstValueFrom(
-          this.http.delete<ApiResponse<any> | any>(url).pipe(
+          this.http.delete<ApiResponse<any> | any>(url, { headers: this.authHeaders() }).pipe(
             map((r: any) => {
               try {
                 return unwrapApi<any>(r as ApiResponse<any>);

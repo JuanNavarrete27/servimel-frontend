@@ -158,15 +158,15 @@
 
           <!-- Glucemia (opc - UX legacy) -->
           <div class="field">
-            <label class="label">Glucemia (opc)</label>
+            <label class="label">Glicemia</label>
             <input
               class="input"
               type="number"
               placeholder="110"
-              formControlName="glucemia"
-              [class.input--invalid]="isInvalid(vitalsForm, 'glucemia')"
+              formControlName="glicemia"
+              [class.input--invalid]="isInvalid(vitalsForm, 'glicemia')"
             />
-            <div class="error" *ngIf="isInvalid(vitalsForm, 'glucemia')">
+            <div class="error" *ngIf="isInvalid(vitalsForm, 'glicemia')">
               Valor inválido.
             </div>
           </div>

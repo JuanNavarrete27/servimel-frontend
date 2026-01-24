@@ -1,3 +1,4 @@
+// src/app/pages/login/login.page.ts
 import {
   Component,
   ElementRef,
@@ -9,10 +10,22 @@ import {
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { gsap } from 'gsap';
 
-import { AuthService } from '../../shared/services/auth.service';
+// ✅ USAR el AuthService core (roles nuevos + setSession)
+import { AuthService } from '../../core/auth/auth.service';
+
+const TOKEN_KEY = 'servimel_token_v1';
+const LEGACY_KEYS = [
+  'servimel_token',
+  'auth_token',
+  'token',
+  'jwt',
+  'access_token',
+  'servimelToken',
+  'servimel_token_v0',
+];
 
 @Component({
   selector: 'app-login-page',
@@ -26,7 +39,6 @@ export class LoginPage implements AfterViewInit, OnDestroy {
   @ViewChild('cardEl', { static: true }) cardEl!: ElementRef<HTMLElement>;
   @ViewChild('btnEl', { static: true }) btnEl!: ElementRef<HTMLButtonElement>;
 
-  // Modal success
   @ViewChild('successBackdrop', { static: false }) successBackdrop?: ElementRef<HTMLElement>;
   @ViewChild('successModal', { static: false }) successModal?: ElementRef<HTMLElement>;
   successOpen = false;
@@ -36,24 +48,22 @@ export class LoginPage implements AfterViewInit, OnDestroy {
   loading = false;
   error = '';
 
-  // ✅ FIX: tipado compatible con cualquier build
   private ctx?: ReturnType<typeof gsap.context>;
-
-  // mouse glow (desktop only)
   private rafId: number | null = null;
   private pendingX = 0;
   private pendingY = 0;
   private hoverCapable = false;
-
-  // timers/tweens
   private successTl?: gsap.core.Timeline;
 
-  // ✅ guardar/restaurar vars globales (ADN usa :root, no :host)
+  // ✅ tween infinito del glow/pulse (para poder matarlo)
+  private pulseTween?: gsap.core.Tween;
+
   private prevHeaderH = '';
   private prevFooterH = '';
 
   constructor(
     private router: Router,
+    private route: ActivatedRoute,
     private auth: AuthService,
     @Inject(PLATFORM_ID) private platformId: object
   ) {}
@@ -61,11 +71,9 @@ export class LoginPage implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    // ✅ AUTH: si ya hay token válido en storage, no mostramos /login
-    // (esto arregla el caso "nueva pestaña": el guard no siempre corre antes de cargar login)
+    // ✅ si ya hay token, afuera del login
     const existingToken = this.getTokenFromStorage();
     if (existingToken) {
-      // micro-delay para evitar ExpressionChanged y que termine el ciclo
       queueMicrotask(() => this.router.navigateByUrl('/dashboard'));
       return;
     }
@@ -74,7 +82,6 @@ export class LoginPage implements AfterViewInit, OnDestroy {
     const card = this.cardEl?.nativeElement;
     if (!root || !card) return;
 
-    // ✅ FIX ADN FULL: en login no hay header/footer → setear en :root
     const docEl = document.documentElement;
     const cs = getComputedStyle(docEl);
     this.prevHeaderH = cs.getPropertyValue('--header-h')?.trim() || '';
@@ -83,12 +90,10 @@ export class LoginPage implements AfterViewInit, OnDestroy {
     docEl.style.setProperty('--header-h', '0px');
     docEl.style.setProperty('--footer-h', '0px');
 
-    // hover capable?
     this.hoverCapable =
       !!window.matchMedia &&
       window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
-    // defaults glow local
     root.style.setProperty('--mx', '50%');
     root.style.setProperty('--my', '40%');
 
@@ -98,28 +103,60 @@ export class LoginPage implements AfterViewInit, OnDestroy {
     if (reduceMotion) return;
 
     this.ctx = gsap.context(() => {
+      // ✅ IMPORTANT: pueden NO existir según el HTML / *ngIf
       const title = card.querySelector<HTMLElement>('[data-anim="title"]');
-      const fields = Array.from(card.querySelectorAll<HTMLElement>('[data-anim="field"]')); // ✅ FIX NodeList->Array
+      const fields = gsap.utils.toArray<HTMLElement>('[data-anim="field"]', card);
       const cta = card.querySelector<HTMLElement>('[data-anim="cta"]');
       const hint = card.querySelector<HTMLElement>('[data-anim="hint"]');
 
+      // base
       gsap.set(card, { opacity: 1, y: 22, scale: 0.975, filter: 'blur(12px)' });
-      gsap.set([title, ...fields, cta, hint].filter(Boolean) as any, { y: 14, opacity: 0, filter: 'blur(10px)' });
+
+      // ✅ set SOLO a los que existen (evita warning target null)
+      const present: HTMLElement[] = [
+        ...(title ? [title] : []),
+        ...fields,
+        ...(cta ? [cta] : []),
+        ...(hint ? [hint] : []),
+      ];
+
+      if (present.length) {
+        gsap.set(present, { y: 14, opacity: 0, filter: 'blur(10px)' });
+      }
 
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
-      tl.to(card, { y: 0, scale: 1, filter: 'blur(0px)', duration: 0.75 }, 0)
-        .to(title, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.55 }, 0.14)
-        .to(fields, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.52, stagger: 0.085 }, 0.22)
-        .to(cta, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.52 }, 0.40)
-        .to(hint, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.50 }, 0.48);
+      tl.to(card, { y: 0, scale: 1, filter: 'blur(0px)', duration: 0.75 }, 0);
 
-      gsap.to(root, {
+      // ✅ animar SOLO si el elemento existe
+      if (title) {
+        tl.to(title, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.55 }, 0.14);
+      }
+
+      if (fields.length) {
+        tl.to(
+          fields,
+          { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.52, stagger: 0.085 },
+          0.22
+        );
+      }
+
+      if (cta) {
+        tl.to(cta, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.52 }, 0.40);
+      }
+
+      if (hint) {
+        tl.to(hint, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.50 }, 0.48);
+      }
+
+      // ✅ tween infinito guardado para kill en destroy
+      this.pulseTween?.kill();
+      this.pulseTween = gsap.to(root, {
         '--pulse': 1,
         duration: 2.2,
         ease: 'sine.inOut',
         yoyo: true,
-        repeat: -1
+        repeat: -1,
       } as any);
     }, root);
   }
@@ -127,9 +164,10 @@ export class LoginPage implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.ctx?.revert();
     this.successTl?.kill();
+    this.pulseTween?.kill();
+
     if (this.rafId) cancelAnimationFrame(this.rafId);
 
-    // ✅ restaurar vars globales
     if (isPlatformBrowser(this.platformId)) {
       const docEl = document.documentElement;
       if (this.prevHeaderH) docEl.style.setProperty('--header-h', this.prevHeaderH);
@@ -182,14 +220,20 @@ export class LoginPage implements AfterViewInit, OnDestroy {
     this.pulseButton();
 
     try {
-      await this.auth.login(this.email.trim(), this.password);
+      // ✅ tu AuthService core debería implementar login(email,password)
+      // y adentro guardar token + user (setSession)
+      await (this.auth as any).login(this.email.trim(), this.password);
 
       this.loading = false;
-      this.openSuccessModal(() => this.router.navigateByUrl('/dashboard'));
+
+      // ✅ si venía de una ruta protegida, volvemos ahí
+      const redirect = this.route.snapshot.queryParamMap.get('redirect');
+      const target = redirect && redirect.startsWith('/') ? redirect : '/dashboard';
+
+      this.openSuccessModal(() => this.router.navigateByUrl(target));
     } catch (e: any) {
       this.loading = false;
 
-      // Mensaje legible
       const msg = (e?.message || '').toLowerCase();
       if (msg.includes('invalid') || msg.includes('cred') || msg.includes('401')) {
         this.error = 'Credenciales inválidas.';
@@ -268,25 +312,24 @@ export class LoginPage implements AfterViewInit, OnDestroy {
     );
   }
 
-  // ============================================================
-  // AUTH helpers (local, no rompe nada)
-  // ============================================================
   private getTokenFromStorage(): string | null {
     if (!isPlatformBrowser(this.platformId)) return null;
 
-    const keys = [
-      'servimel_token_v1',
-      'servimel_token',
-      'auth_token',
-      'token',
-      'jwt',
-      'access_token'
-    ];
+    try {
+      const direct = localStorage.getItem(TOKEN_KEY);
+      if (direct && direct.trim()) return direct.trim();
 
-    for (const k of keys) {
-      const v = localStorage.getItem(k);
-      if (v && v.trim()) return v.trim();
+      for (const k of LEGACY_KEYS) {
+        const v = localStorage.getItem(k);
+        if (v && v.trim()) {
+          try { localStorage.setItem(TOKEN_KEY, v.trim()); } catch {}
+          return v.trim();
+        }
+      }
+    } catch {
+      // noop
     }
+
     return null;
   }
 }

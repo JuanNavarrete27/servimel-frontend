@@ -1,0 +1,69 @@
+<div class="page">
+  <header class="head">
+    <h1>Alta de funcionarios</h1>
+    <p class="muted">
+      Solo <strong>ADMIN</strong>. Los usuarios se crean con contraseña inicial:
+      <strong class="pill">123456</strong>
+    </p>
+    <p class="warn">
+      ⚠️ La <strong>edad</strong> por ahora se guarda solo en esta pantalla.
+    </p>
+  </header>
+
+  <section class="card" *ngIf="isAdmin; else notAdmin">
+    <form [formGroup]="form" (ngSubmit)="crearFuncionario()">
+      <div class="grid">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" formControlName="email" placeholder="usuario@servimel.com" />
+          <small class="err" *ngIf="f.email.touched && f.email.invalid">
+            Email inválido.
+          </small>
+        </label>
+
+        <label class="field">
+          <span>Nombre</span>
+          <input type="text" formControlName="nombre" placeholder="Nombre" />
+          <small class="err" *ngIf="f.nombre.touched && f.nombre.invalid">
+            Nombre requerido.
+          </small>
+        </label>
+
+        <label class="field">
+          <span>Edad</span>
+          <input type="number" formControlName="edad" placeholder="Ej: 28" />
+          <small class="err" *ngIf="f.edad.touched && f.edad.invalid">
+            Edad inválida (16–110).
+          </small>
+        </label>
+
+        <label class="field">
+          <span>Rol</span>
+          <select formControlName="rol">
+            <option *ngFor="let r of roleOptions" [value]="r.value">{{ r.label }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button class="btn" type="submit" [disabled]="loading">
+          {{ loading ? 'Creando…' : 'Crear funcionario' }}
+        </button>
+
+        <div class="note">
+          Contraseña inicial: <strong>123456</strong> (pedile que la cambie en “Perfil”).
+        </div>
+      </div>
+
+      <div class="msg ok" *ngIf="okMsg">{{ okMsg }}</div>
+      <div class="msg err" *ngIf="errMsg">{{ errMsg }}</div>
+    </form>
+  </section>
+
+  <ng-template #notAdmin>
+    <section class="card">
+      <h2>Sin permisos</h2>
+      <p class="muted">Solo el rol <strong>admin</strong> puede crear funcionarios.</p>
+    </section>
+  </ng-template>
+</div>

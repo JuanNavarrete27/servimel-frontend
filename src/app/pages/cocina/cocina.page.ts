@@ -19,12 +19,14 @@
 //    - PUT    /api/cocina/assignments   ✅ (FIX: body { assignments: [] })
 //    - GET    /api/cocina/view?residentId=ID&weekStart=YYYY-MM-DD
 //    - GET    /residentes   (SIN /api)
+// ✅ FIX EXTRA:
+//    - Authorization Bearer en TODAS las llamadas (incluye /residentes por si está protegido)
 // ============================================================
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 import { API_CONFIG } from '../../core/config/api.config';
@@ -168,6 +170,27 @@ export class CocinaPage implements OnInit {
   activeCell: ActiveCell | null = null;
   activeCellDraft: MenuCell = this.defaultCell();
 
+  // ============================================================
+  // Auth helpers
+  // ============================================================
+  private getToken(): string | null {
+    const keys = ['servimel_token_v1', 'servimel_token', 'auth_token', 'token', 'jwt', 'access_token'];
+    for (const k of keys) {
+      try {
+        const v = localStorage.getItem(k);
+        if (v?.trim()) return v.trim();
+      } catch {
+        // noop
+      }
+    }
+    return null;
+  }
+
+  private authHeaders(): HttpHeaders {
+    const t = this.getToken();
+    return t ? new HttpHeaders({ Authorization: `Bearer ${t}` }) : new HttpHeaders();
+  }
+
   // Loading counter
   private loadingCount = 0;
 
@@ -204,11 +227,11 @@ export class CocinaPage implements OnInit {
     return this.join(this.baseUrl(), `/api/cocina${p}`);
   }
 
-  private safeUnwrap<T>(res: any): any {
+  private safeUnwrap<T>(res: any): T {
     try {
       return unwrapApi<T>(res as ApiResponse<T>);
     } catch {
-      return res;
+      return res as T;
     }
   }
 
@@ -399,7 +422,7 @@ export class CocinaPage implements OnInit {
   }
 
   // ============================================================
-  // Residents (REAL) — GET /residentes  ✅ SIN /api
+  // Residents (REAL) — GET /residentes ✅ SIN /api
   // ============================================================
   private async loadResidents(): Promise<void> {
     this.errorMsg = '';
@@ -407,7 +430,9 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.residentesUrl('/residentes');
-      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
+      const res = await firstValueFrom(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }),
+      );
       const data = this.safeUnwrap<any>(res);
 
       const arr: any[] =
@@ -452,8 +477,10 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl(`/menus?weekStart=${encodeURIComponent(this.weekStartIso)}`);
-      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
-      const un = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }),
+      );
+      const un = this.safeUnwrap<any>(res) || (res as any);
 
       const list: any[] =
         Array.isArray(un)
@@ -500,8 +527,10 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl(`/menus/${menuId}`);
-      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
-      const un = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }),
+      );
+      const un = this.safeUnwrap<any>(res) || (res as any);
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
       if (!raw) return null;
@@ -524,8 +553,10 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl(`/assignments?weekStart=${encodeURIComponent(this.weekStartIso)}`);
-      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
-      const un = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }),
+      );
+      const un = this.safeUnwrap<any>(res) || (res as any);
 
       const list: any[] =
         Array.isArray(un)
@@ -567,11 +598,15 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl(
-        `/view?residentId=${encodeURIComponent(this.viewerResidentId)}&weekStart=${encodeURIComponent(this.weekStartIso)}`,
+        `/view?residentId=${encodeURIComponent(this.viewerResidentId)}&weekStart=${encodeURIComponent(
+          this.weekStartIso,
+        )}`,
       );
 
-      const res = await firstValueFrom(this.http.get<ApiResponse<any> | any>(url));
-      const data = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.get<ApiResponse<any> | any>(url, { headers: this.authHeaders() }),
+      );
+      const data = this.safeUnwrap<any>(res) || (res as any);
 
       const assignmentRaw = data?.assignment ?? data?.asignacion ?? null;
       const menuRaw = data?.menu ?? null;
@@ -676,8 +711,10 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl('/menus');
-      const res = await firstValueFrom(this.http.post<ApiResponse<any> | any>(url, payload));
-      const un = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.post<ApiResponse<any> | any>(url, payload, { headers: this.authHeaders() }),
+      );
+      const un = this.safeUnwrap<any>(res) || (res as any);
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
       if (!raw) throw new Error('No menu returned');
@@ -730,8 +767,10 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl(`/menus/${this.selectedMenuId}`);
-      const res = await firstValueFrom(this.http.put<ApiResponse<any> | any>(url, payload));
-      const un = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.put<ApiResponse<any> | any>(url, payload, { headers: this.authHeaders() }),
+      );
+      const un = this.safeUnwrap<any>(res) || (res as any);
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
       const saved = raw ? this.normalizeMenu(raw) : this.normalizeMenu(payload);
@@ -761,8 +800,10 @@ export class CocinaPage implements OnInit {
 
     try {
       const url = this.cocinaUrl(`/menus/${this.selectedMenuId}/publish`);
-      const res = await firstValueFrom(this.http.post<ApiResponse<any> | any>(url, {}));
-      const un = this.safeUnwrap<any>(res) || res;
+      const res = await firstValueFrom(
+        this.http.post<ApiResponse<any> | any>(url, {}, { headers: this.authHeaders() }),
+      );
+      const un = this.safeUnwrap<any>(res) || (res as any);
 
       const raw = un?.menu ?? un?.data ?? un ?? null;
       const published = raw ? this.normalizeMenu(raw) : null;
@@ -934,10 +975,14 @@ export class CocinaPage implements OnInit {
 
     try {
       // ✅ FIX REAL: Backend espera "assignments" como ARRAY
-      // Antes: { weekStart, rows }
-      // Ahora: { weekStart, assignments: rows }
       const url = this.cocinaUrl('/assignments');
-      await firstValueFrom(this.http.put<ApiResponse<any> | any>(url, { weekStart, assignments: rows }));
+      await firstValueFrom(
+        this.http.put<ApiResponse<any> | any>(
+          url,
+          { weekStart, assignments: rows },
+          { headers: this.authHeaders() },
+        ),
+      );
 
       await this.loadAssignments();
       if (this.viewerResidentId) await this.loadViewer();

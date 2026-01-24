@@ -1,3 +1,4 @@
+// src/app/shared/components/header/header.component.ts
 import {
   Component,
   HostListener,
@@ -6,7 +7,7 @@ import {
   AfterViewInit,
   OnDestroy,
   Inject,
-  PLATFORM_ID
+  PLATFORM_ID,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
@@ -52,18 +53,32 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
   logoPath = '/images/logo.png';
 
-  nav: NavItem[] = [
+  // =========================
+  // ✅ NAV (master + filtrado)
+  // =========================
+  private readonly NAV_ALL: NavItem[] = [
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'Residentes', path: '/residentes' },
     { label: 'Enfermería', path: '/enfermeria' },
-    { label: 'Medicina General', path: '/medicina-general' },
     { label: 'Fisioterapia', path: '/fisioterapia' },
     { label: 'Historial', path: '/historial' },
     { label: 'Ed. Física', path: '/ed-fisica' },
     { label: 'Yoga', path: '/yoga' },
     { label: 'Cocina', path: '/cocina' },
     { label: 'Ajustes', path: '/ajustes' },
+    { label: 'Perfil', path: '/perfil' },
   ];
+
+  // ✅ Admin-only (extra)
+  private readonly NAV_ADMIN_ONLY: NavItem[] = [
+    { label: 'Crear funcionario', path: '/crearfuncionario' },
+  ];
+
+  // ✅ Lo que ve el usuario (se recalcula por rol)
+  nav: NavItem[] = [...this.NAV_ALL];
+
+  // ✅ role actual (normalizado)
+  private currentRole = '';
 
   // FX (mouse glow) — throttled
   private rafId: number | null = null;
@@ -86,6 +101,9 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
   // Router tracking
   private routerSub?: Subscription;
+
+  // Auth tracking
+  private authSub?: Subscription;
 
   constructor(
     private router: Router,
@@ -112,6 +130,31 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     this.setHeaderVar('--mx', '50%');
     this.setHeaderVar('--my', '0%');
     this.setHeaderVar('--scrollGlow', '0');
+
+    // ✅ NAV por rol (tu AuthService expone `user`, no `user$`)
+    const user$ = (this.auth as any)?.user; // Observable / BehaviorSubject expuesto por AuthService
+    if (user$?.subscribe) {
+      this.authSub = user$.subscribe((u: any) => {
+        const raw = String(u?.role ?? u?.rol ?? '').toLowerCase().trim();
+        const role = this.normalizeRole(raw);
+        this.currentRole = role;
+
+        // Recalcular nav visible
+        this.nav = this.computeNavForRole(role);
+
+        // Recalcular activo
+        this.isServicesActive = this.computeServicesActive(this.router.url);
+
+        // Cerrar dropdown si hace falta
+        this.isServicesOpen = false;
+        this.animateServices(false);
+
+        this.applyHeaderHeight();
+      });
+    } else {
+      // fallback seguro si no hay observable disponible
+      this.nav = this.pickNav(['/dashboard', '/perfil']);
+    }
 
     // Medir alto real del header y setear --header-h (en :root)
     this.applyHeaderHeight();
@@ -155,6 +198,84 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
     this.logoutTl?.kill();
     this.routerSub?.unsubscribe();
+    this.authSub?.unsubscribe();
+  }
+
+  // =========================
+  // ✅ ROLE NORMALIZATION
+  // =========================
+  private normalizeRole(role: string): string {
+    const r = (role || '').toLowerCase().trim();
+
+    // alias / typos comunes
+    if (r === 'enfermero' || r === 'enfermera' || r === 'nurse') return 'enfermeria';
+
+    // a veces viene "ed_fisico" / "educacion-fisica" etc.
+    if (r === 'ed_fisico' || r === 'educacion-fisica' || r === 'edfísico') return 'ed-fisico';
+
+    // cocina: permitir "cocinero" o "cocina"
+    if (r === 'cocinero') return 'cocina';
+
+    return r;
+  }
+
+  // =========================
+  // ✅ NAV BY ROLE (reglas)
+  // =========================
+  private computeNavForRole(role: string): NavItem[] {
+    // 1) admin => todos + /crearfuncionario
+    if (role === 'admin') {
+      return [...this.NAV_ALL, ...this.NAV_ADMIN_ONLY];
+    }
+
+    // 5) medico => todos los paths (menos crearfuncionario)
+    if (role === 'medico') {
+      return [...this.NAV_ALL];
+    }
+
+    // 6) enfermero/enfermeria => paths (menos crearfuncionario)
+    if (role === 'enfermeria') {
+      return [...this.NAV_ALL];
+    }
+
+    // 2) cocina => dashboard, residentes, cocina, ajustes, perfil
+    if (role === 'cocina') {
+      return this.pickNav(['/dashboard', '/residentes', '/cocina', '/ajustes', '/perfil']);
+    }
+
+    // 3) ed-fisico => dashboard, residentes, cocina, ed-fisica, yoga, ajustes, perfil
+    if (role === 'ed-fisico') {
+      return this.pickNav([
+        '/dashboard',
+        '/residentes',
+        '/cocina',
+        '/ed-fisica',
+        '/yoga',
+        '/ajustes',
+        '/perfil',
+      ]);
+    }
+
+    // 4) fisioterapeuta => dashboard, residentes, cocina, fisioterapia, ajustes, perfil
+    if (role === 'fisioterapeuta') {
+      return this.pickNav([
+        '/dashboard',
+        '/residentes',
+        '/cocina',
+        '/fisioterapia',
+        '/ajustes',
+        '/perfil',
+      ]);
+    }
+
+    // Fallback seguro: lo mínimo
+    return this.pickNav(['/dashboard', '/perfil']);
+  }
+
+  private pickNav(paths: string[]): NavItem[] {
+    const set = new Set(paths);
+    const all = [...this.NAV_ALL, ...this.NAV_ADMIN_ONLY];
+    return all.filter((n) => set.has(n.path));
   }
 
   // =========================
@@ -186,33 +307,17 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
     this.tlMenu = gsap
       .timeline({ paused: true })
-      .set(mobile, { pointerEvents: 'auto' }, 0) // ✅ FIX: habilitar click ya
-      .to(mobile, {
-        height: 'auto',
-        duration: 0.38,
-        ease: 'power3.out',
-      })
+      .set(mobile, { pointerEvents: 'auto' }, 0)
+      .to(mobile, { height: 'auto', duration: 0.38, ease: 'power3.out' })
       .to(
         mobile,
-        {
-          opacity: 1,
-          y: 0,
-          filter: 'blur(0px)',
-          duration: 0.28,
-          ease: 'power2.out',
-        },
+        { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.28, ease: 'power2.out' },
         0
       )
       .fromTo(
         links,
         { opacity: 0, y: -8 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.28,
-          ease: 'power2.out',
-          stagger: 0.045,
-        },
+        { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out', stagger: 0.045 },
         0.08
       );
   }
@@ -224,7 +329,6 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     const menu = this.servicesMenu?.nativeElement;
     if (!menu) return;
 
-    // base cerrado
     gsap.set(menu, {
       opacity: 0,
       y: -6,
@@ -239,33 +343,17 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
     this.tlServices = gsap
       .timeline({ paused: true })
-      .set(menu, { pointerEvents: 'auto' }, 0) // ✅ FIX: habilitar click ya (si no, se cierra al intentar seleccionar)
-      .to(menu, {
-        height: 'auto',
-        duration: 0.30,
-        ease: 'power3.out',
-      })
+      .set(menu, { pointerEvents: 'auto' }, 0)
+      .to(menu, { height: 'auto', duration: 0.30, ease: 'power3.out' })
       .to(
         menu,
-        {
-          opacity: 1,
-          y: 0,
-          filter: 'blur(0px)',
-          duration: 0.22,
-          ease: 'power2.out',
-        },
+        { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power2.out' },
         0
       )
       .fromTo(
         items,
         { opacity: 0, y: -8 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.22,
-          ease: 'power2.out',
-          stagger: 0.035,
-        },
+        { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out', stagger: 0.035 },
         0.06
       );
   }
@@ -337,16 +425,12 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   // =========================
   toggleServices() {
     this.isServicesOpen = !this.isServicesOpen;
-
-    // no mezclar con mobile abierto
     if (this.isServicesOpen) this.isMenuOpen = false;
-
     this.animateServices(this.isServicesOpen);
     this.applyHeaderHeight();
   }
 
   openServices() {
-    // hover-friendly sólo en desktop con hover real
     if (!this.hoverCapable) return;
     if (this.isServicesOpen) return;
 
@@ -367,10 +451,8 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     const menu = this.servicesMenu?.nativeElement;
     if (!menu) return;
 
-    // ✅ FIX: permitir click INMEDIATO al abrir (evita “no puedo seleccionar”)
     if (open) gsap.set(menu, { pointerEvents: 'auto' });
 
-    // reduced-motion => instant
     if (this.reduceMotion || !this.tlServices) {
       gsap.killTweensOf(menu);
       gsap.set(menu, {
@@ -399,10 +481,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   // =========================
   toggleMenu() {
     this.isMenuOpen = !this.isMenuOpen;
-
-    // si abrís mobile, cerrá servicios
     if (this.isMenuOpen) this.closeServices();
-
     this.animateMenu(this.isMenuOpen);
     this.applyHeaderHeight();
   }
@@ -410,7 +489,6 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   closeMenu() {
     if (!this.isMenuOpen) return;
     this.isMenuOpen = false;
-
     this.animateMenu(false);
     this.applyHeaderHeight();
   }
@@ -419,7 +497,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     const mobile = this.mobileEl?.nativeElement;
     if (!mobile) return;
 
-    if (open) gsap.set(mobile, { pointerEvents: 'auto' }); // ✅ click inmediato
+    if (open) gsap.set(mobile, { pointerEvents: 'auto' });
 
     if (this.reduceMotion || !this.tlMenu) {
       gsap.killTweensOf(mobile);
@@ -492,7 +570,11 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
           .to(bd, { opacity: 1, duration: 0.18 }, 0)
           .to(md, { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.28 }, 0.02)
           .to(md, { y: -2, duration: 0.18, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 0.32)
-          .to(md, { opacity: 0, y: 10, filter: 'blur(10px)', duration: 0.22, ease: 'power2.inOut' }, 0.92)
+          .to(
+            md,
+            { opacity: 0, y: 10, filter: 'blur(10px)', duration: 0.22, ease: 'power2.inOut' },
+            0.92
+          )
           .to(bd, { opacity: 0, duration: 0.18 }, 0.98)
           .add(() => {
             this.logoutOpen = false;
@@ -522,12 +604,12 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
       'refreshToken',
       'auth',
       'user',
-      'servimel_user_v1'
+      'servimel_user_v1',
     ];
 
     try {
-      keys.forEach(k => localStorage.removeItem(k));
-      keys.forEach(k => sessionStorage.removeItem(k));
+      keys.forEach((k) => localStorage.removeItem(k));
+      keys.forEach((k) => sessionStorage.removeItem(k));
     } catch {
       // ignore
     }

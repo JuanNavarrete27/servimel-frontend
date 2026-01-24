@@ -1,9 +1,8 @@
-// F4 — src/app/core/interceptors/auth-token.interceptor.ts
+// src/app/core/interceptors/auth-token.interceptor.ts
 import { HttpInterceptorFn } from '@angular/common/http';
 
 const TOKEN_KEY = 'servimel_token_v1';
 
-// Si venías de otras keys, migramos UNA vez para no romper sesiones viejas.
 const LEGACY_TOKEN_KEYS = [
   'token',
   'auth_token',
@@ -20,10 +19,8 @@ function normalizeToken(raw: any): string | null {
   let v = String(raw).trim();
   if (!v) return null;
 
-  // Si guardaron algo tipo "Bearer eyJ..."
   v = v.replace(/^Bearer\s+/i, '').trim();
 
-  // Si quedó guardado con comillas: "eyJ..."
   if (
     (v.startsWith('"') && v.endsWith('"')) ||
     (v.startsWith("'") && v.endsWith("'"))
@@ -31,7 +28,6 @@ function normalizeToken(raw: any): string | null {
     v = v.slice(1, -1).trim();
   }
 
-  // Si guardaron un JSON en vez del token
   if (v.startsWith('{') && v.endsWith('}')) {
     try {
       const obj = JSON.parse(v);
@@ -50,36 +46,31 @@ function normalizeToken(raw: any): string | null {
     }
   }
 
-  // Validación mínima
   if (v.length < 10) return null;
   return v;
 }
 
 function readTokenFrom(storage: Storage, key: string): string | null {
   try {
-    const raw = storage.getItem(key);
-    return normalizeToken(raw);
+    return normalizeToken(storage.getItem(key));
   } catch {
     return null;
   }
 }
 
 function readToken(): string | null {
-  // 1) KEY oficial primero
   const direct =
     readTokenFrom(localStorage, TOKEN_KEY) ||
     readTokenFrom(sessionStorage, TOKEN_KEY);
 
   if (direct) return direct;
 
-  // 2) Keys viejas (local + session)
   for (const k of LEGACY_TOKEN_KEYS) {
     const v =
       readTokenFrom(localStorage, k) ||
       readTokenFrom(sessionStorage, k);
 
     if (v) {
-      // migración silenciosa
       try {
         localStorage.setItem(TOKEN_KEY, v);
       } catch {}
@@ -91,7 +82,7 @@ function readToken(): string | null {
 }
 
 function shouldSkip(reqUrl: string): boolean {
-  // No meter Bearer en auth/login|register (y similares si los usás)
+  // No meter Bearer en auth/login|register
   return /\/auth\/(login|register)\b/i.test(reqUrl);
 }
 
@@ -99,16 +90,19 @@ export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
   try {
     if (shouldSkip(req.url)) return next(req);
 
+    // si ya viene auth header, no lo tocamos
+    if (req.headers?.has('Authorization')) return next(req);
+
     const token = readToken();
     if (!token) return next(req);
 
-    const authReq = req.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    return next(authReq);
+    return next(
+      req.clone({
+        setHeaders: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+    );
   } catch {
     return next(req);
   }
